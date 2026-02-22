@@ -117,4 +117,4 @@ lib/
 
 ## License
 
-This project is part of the Cactus × DeepMind FunctionGemma Hackathon.
+
