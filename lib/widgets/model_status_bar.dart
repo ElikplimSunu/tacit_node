@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_typography.dart';
 
 /// Top status bar showing model loading state and connection mode.
 class ModelStatusBar extends StatelessWidget {
@@ -17,29 +19,26 @@ class ModelStatusBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xCC0F0F23),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
       ),
       child: SafeArea(
         bottom: false,
         child: Row(
           children: [
             // Logo / Title
-            const Text(
+            Text(
               'TACIT',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
+              style: AppTypography.titleMedium.copyWith(
                 fontWeight: FontWeight.w800,
                 letterSpacing: 3,
               ),
             ),
             Text(
               'NODE',
-              style: TextStyle(
-                color: Colors.amber.shade400,
-                fontSize: 16,
+              style: AppTypography.titleMedium.copyWith(
+                color: AppColors.primary,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 3,
               ),
@@ -60,13 +59,13 @@ class ModelStatusBar extends StatelessWidget {
     IconData chipIcon;
 
     if (isModelReady) {
-      chipColor = const Color(0xFF66BB6A);
+      chipColor = AppColors.success;
       chipIcon = Icons.check_circle_outline;
     } else if (status.contains('Error')) {
-      chipColor = const Color(0xFFEF5350);
+      chipColor = AppColors.error;
       chipIcon = Icons.error_outline;
     } else {
-      chipColor = Colors.amber.shade400;
+      chipColor = AppColors.primary;
       chipIcon = Icons.hourglass_top;
     }
 
@@ -96,11 +95,10 @@ class ModelStatusBar extends StatelessWidget {
           Flexible(
             child: Text(
               status,
-              style: TextStyle(
+              style: AppTypography.labelSmall.copyWith(
                 color: chipColor,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
                 fontFamily: 'monospace',
+                fontWeight: FontWeight.w600,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -121,16 +119,11 @@ class ModelStatusBar extends StatelessWidget {
             height: 8,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isModelReady
-                  ? const Color(0xFF66BB6A)
-                  : Colors.amber.shade400,
+              color: isModelReady ? AppColors.success : AppColors.primary,
               boxShadow: [
                 BoxShadow(
-                  color:
-                      (isModelReady
-                              ? const Color(0xFF66BB6A)
-                              : Colors.amber.shade400)
-                          .withValues(alpha: 0.6),
+                  color: (isModelReady ? AppColors.success : AppColors.primary)
+                      .withValues(alpha: 0.6),
                   blurRadius: 6,
                 ),
               ],
@@ -139,8 +132,8 @@ class ModelStatusBar extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             isModelReady ? 'EDGE' : 'INIT',
-            style: TextStyle(
-              color: Colors.grey.shade400,
+            style: AppTypography.labelSmall.copyWith(
+              color: AppColors.textMuted,
               fontSize: 9,
               fontWeight: FontWeight.w700,
               letterSpacing: 1,

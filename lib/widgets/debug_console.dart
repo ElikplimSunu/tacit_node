@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/routing_decision.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_typography.dart';
 
 /// A semi-transparent debug console overlay that displays real-time
 /// routing decisions and system logs with color-coded entries.
@@ -26,8 +28,8 @@ class DebugConsole extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xDD1A1A2E),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        border: Border(
-          top: BorderSide(color: Colors.amber.withValues(alpha: 0.4), width: 1),
+        border: const Border(
+          top: BorderSide(color: AppColors.primary, width: 1),
         ),
         boxShadow: [
           BoxShadow(
@@ -46,14 +48,12 @@ class DebugConsole extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  Icon(Icons.terminal, color: Colors.amber.shade400, size: 16),
+                  Icon(Icons.terminal, color: AppColors.primary, size: 16),
                   const SizedBox(width: 8),
                   Text(
                     'DEBUG CONSOLE',
-                    style: TextStyle(
-                      color: Colors.amber.shade400,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
+                    style: AppTypography.labelMedium.copyWith(
+                      color: AppColors.primary,
                       letterSpacing: 1.5,
                       fontFamily: 'monospace',
                     ),
@@ -63,7 +63,7 @@ class DebugConsole extends StatelessWidget {
                     isExpanded
                         ? Icons.keyboard_arrow_down
                         : Icons.keyboard_arrow_up,
-                    color: Colors.amber.shade400,
+                    color: AppColors.primary,
                     size: 20,
                   ),
                 ],
@@ -77,10 +77,8 @@ class DebugConsole extends StatelessWidget {
                 ? Center(
                     child: Text(
                       'Awaiting input…',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontFamily: 'monospace',
-                        fontSize: 12,
+                      style: AppTypography.consoleText.copyWith(
+                        color: AppColors.textMuted,
                       ),
                     ),
                   )
@@ -97,15 +95,11 @@ class DebugConsole extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 1),
                         child: RichText(
                           text: TextSpan(
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11,
-                              height: 1.4,
-                            ),
+                            style: AppTypography.consoleText,
                             children: [
                               TextSpan(
                                 text: '[${entry.formattedTime}] ',
-                                style: TextStyle(color: Colors.grey.shade500),
+                                style: TextStyle(color: AppColors.textMuted),
                               ),
                               TextSpan(
                                 text: entry.message,
@@ -127,10 +121,10 @@ class DebugConsole extends StatelessWidget {
 
   Color _colorForSeverity(ConsoleSeverity severity) {
     return switch (severity) {
-      ConsoleSeverity.info => const Color(0xFFB0BEC5),
-      ConsoleSeverity.success => const Color(0xFF66BB6A),
-      ConsoleSeverity.warning => const Color(0xFFFFCA28),
-      ConsoleSeverity.error => const Color(0xFFEF5350),
+      ConsoleSeverity.info => AppColors.textSecondary,
+      ConsoleSeverity.success => AppColors.success,
+      ConsoleSeverity.warning => AppColors.warning,
+      ConsoleSeverity.error => AppColors.error,
     };
   }
 }

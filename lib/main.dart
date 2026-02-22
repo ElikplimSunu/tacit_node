@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/copilot_screen.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,17 +36,7 @@ class TacitNodeApp extends StatelessWidget {
     return MaterialApp(
       title: 'TacitNode',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0F0F23),
-        colorScheme: ColorScheme.dark(
-          primary: Colors.amber.shade600,
-          secondary: const Color(0xFF66BB6A),
-          surface: const Color(0xFF1A1A2E),
-        ),
-        fontFamily: 'Roboto',
-      ),
+      theme: AppTheme.darkTheme,
       home: const CopilotScreen(),
     );
   }

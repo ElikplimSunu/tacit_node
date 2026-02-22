@@ -6,6 +6,8 @@ import '../services/camera_service.dart';
 import '../services/copilot_service.dart';
 import '../widgets/debug_console.dart';
 import '../widgets/model_status_bar.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_typography.dart';
 
 /// The main operator interface:
 /// Full-screen camera preview, debug console overlay, query input,
@@ -153,7 +155,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F23),
+      backgroundColor: AppColors.background,
       body: Stack(
         children: [
           // Layer 1: Camera preview (or placeholder)
@@ -232,7 +234,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
   Widget _buildCameraLayer() {
     if (!_camera.isInitialized || _camera.controller == null) {
       return Container(
-        color: const Color(0xFF0F0F23),
+        color: AppColors.background,
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -240,17 +242,21 @@ class _CopilotScreenState extends State<CopilotScreen> {
               Icon(
                 Icons.videocam_off_rounded,
                 size: 64,
-                color: Colors.grey.shade700,
+                color: AppColors.textMuted,
               ),
               const SizedBox(height: 12),
               Text(
                 'No camera available',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 'Running in text-only mode',
-                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textMuted,
+                ),
               ),
             ],
           ),
@@ -282,8 +288,8 @@ class _CopilotScreenState extends State<CopilotScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _responseText.startsWith('☁️')
-              ? Colors.amber.withValues(alpha: 0.4)
-              : const Color(0xFF66BB6A).withValues(alpha: 0.4),
+              ? AppColors.warning.withValues(alpha: 0.4)
+              : AppColors.success.withValues(alpha: 0.4),
         ),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 16),
@@ -301,27 +307,29 @@ class _CopilotScreenState extends State<CopilotScreen> {
                     : Icons.check_circle,
                 size: 16,
                 color: _responseText.startsWith('☁️')
-                    ? Colors.amber.shade400
-                    : const Color(0xFF66BB6A),
+                    ? AppColors.warning
+                    : AppColors.success,
               ),
               const SizedBox(width: 8),
               Text(
                 _responseText.startsWith('☁️')
                     ? 'EXPERT ANALYSIS'
                     : 'LOCAL VALIDATION',
-                style: TextStyle(
+                style: AppTypography.labelSmall.copyWith(
                   color: _responseText.startsWith('☁️')
-                      ? Colors.amber.shade400
-                      : const Color(0xFF66BB6A),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+                      ? AppColors.warning
+                      : AppColors.success,
                   letterSpacing: 1.5,
                 ),
               ),
               const Spacer(),
               GestureDetector(
                 onTap: () => setState(() => _responseText = ''),
-                child: Icon(Icons.close, size: 18, color: Colors.grey.shade500),
+                child: const Icon(
+                  Icons.close,
+                  size: 18,
+                  color: AppColors.textMuted,
+                ),
               ),
             ],
           ),
@@ -330,8 +338,8 @@ class _CopilotScreenState extends State<CopilotScreen> {
             child: SingleChildScrollView(
               child: Text(
                 _responseText,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textPrimary,
                   fontSize: 13,
                   height: 1.5,
                 ),
@@ -346,7 +354,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
   Widget _buildInputBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: const Color(0xCC1A1A2E)),
+      decoration: const BoxDecoration(color: AppColors.surface),
       child: Row(
         children: [
           // Capture button
@@ -368,12 +376,12 @@ class _CopilotScreenState extends State<CopilotScreen> {
                   shape: BoxShape.circle,
                   color: _isProcessing
                       ? Colors.grey.shade800
-                      : Colors.amber.shade700,
+                      : AppColors.primary,
                   boxShadow: _isProcessing
                       ? []
                       : [
                           BoxShadow(
-                            color: Colors.amber.withValues(alpha: 0.3),
+                            color: AppColors.primary.withValues(alpha: 0.3),
                             blurRadius: 12,
                           ),
                         ],
@@ -401,12 +409,9 @@ class _CopilotScreenState extends State<CopilotScreen> {
             child: TextField(
               controller: _queryController,
               onSubmitted: (_) => _handleQuery(),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: AppTypography.bodyMedium,
               decoration: InputDecoration(
                 hintText: 'Ask about what you see…',
-                hintStyle: TextStyle(color: Colors.grey.shade600),
-                filled: true,
-                fillColor: const Color(0xFF252545),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 10,
@@ -427,15 +432,15 @@ class _CopilotScreenState extends State<CopilotScreen> {
               borderRadius: BorderRadius.circular(24),
               child: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF252545),
+                  color: AppColors.surface,
                 ),
                 child: Icon(
                   Icons.send_rounded,
                   color: _isProcessing
-                      ? Colors.grey.shade700
-                      : Colors.amber.shade400,
+                      ? AppColors.textMuted
+                      : AppColors.primary,
                   size: 20,
                 ),
               ),

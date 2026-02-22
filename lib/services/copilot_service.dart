@@ -374,8 +374,9 @@ Always output a tool call JSON.
             messages: [
               ChatMessage(
                 content:
-                    'What electronic component, PCB, or circuit board is this? '
-                    'Reply with just the component name, followed by a period, and a brief description.',
+                    'What electronic component or object is this? '
+                    'Reply with ONLY a single short phrase (1-3 words) naming the object, followed by a period. '
+                    'Examples: "Red LED.", "Arduino Uno.", "Breadboard.", "Resistor."',
                 role: 'user',
                 images: [imageFilePath],
               ),
@@ -539,9 +540,8 @@ Always output a tool call JSON.
       return {
         'name': 'validate_routine_step',
         'args': {
-          'component_name': extractValue('component_name') ?? 'component',
-          'step_description':
-              extractValue('step_description') ?? 'Identified by local model',
+          'component_name': extractValue('component_name') ?? 'unknown',
+          'step_description': extractValue('step_description') ?? 'identifying',
         },
       };
     }
