@@ -90,14 +90,10 @@ class CopilotService {
   // ---------------------------------------------------------------------------
 
   static const String _systemPrompt = '''
-/no_think
-You are TacitNode, a field equipment copilot. You MUST call exactly one tool for every query. NEVER respond with plain text.
-
-ROUTING RULES:
-- "What is this?", "What do you see?", identifying components → call validate_routine_step
-- "Why is this failing?", diagnosing faults, unsure → call escalate_to_expert
-
-ALWAYS call a tool. If unsure which, call escalate_to_expert.
+You are TacitNode, a field equipment copilot assisting a technician.
+For identification queries, call validate_routine_step.
+For diagnostic or fault queries, call escalate_to_expert.
+Always use a tool.
 ''';
 
   // ---------------------------------------------------------------------------
@@ -111,7 +107,7 @@ ALWAYS call a tool. If unsure which, call escalate_to_expert.
 
     try {
       await _lm.downloadModel(
-        model: 'qwen3-0.6',
+        model: 'gemma3-270m',
         downloadProcessCallback: (progress, status, isError) {
           if (isError) {
             _log('Download error: $status', ConsoleSeverity.error);
@@ -199,7 +195,7 @@ ALWAYS call a tool. If unsure which, call escalate_to_expert.
           parsed['args'] as Map<String, dynamic>? ?? {},
         );
         if (toolName == 'validate_routine_step') {
-          return _handleLocalValidation(toolArgs);
+          return await _handleLocalValidation(toolArgs, query, imagePath);
         } else if (toolName == 'escalate_to_expert') {
           return await _handleCloudEscalation(toolArgs, query, imagePath);
         }
@@ -238,7 +234,7 @@ ALWAYS call a tool. If unsure which, call escalate_to_expert.
       );
 
       if (toolName == 'validate_routine_step') {
-        return _handleLocalValidation(toolArgs);
+        return await _handleLocalValidation(toolArgs, originalQuery, imagePath);
       } else if (toolName == 'escalate_to_expert') {
         return await _handleCloudEscalation(toolArgs, originalQuery, imagePath);
       }
@@ -248,9 +244,54 @@ ALWAYS call a tool. If unsure which, call escalate_to_expert.
     return 'Unknown tool call.';
   }
 
-  String _handleLocalValidation(Map<String, dynamic> args) {
-    final component = args['component_name'] ?? 'unknown';
-    final step = args['step_description'] ?? 'No description';
+  Future<String> _handleLocalValidation(
+    Map<String, dynamic> args,
+    String originalQuery,
+    String? imagePath,
+  ) async {
+    var component = (args['component_name'] as String?)?.trim() ?? '';
+    var step = (args['step_description'] as String?)?.trim() ?? '';
+
+    // FunctionGemma can't see images — if args are empty and we have an image,
+    // use Gemini vision specifically for identification (NOT a full escalation).
+    if ((component.isEmpty || step.isEmpty) && imagePath != null) {
+      _log(
+        '🔍 Local routing OK → cloud vision for identification',
+        ConsoleSeverity.info,
+      );
+
+      try {
+        final visionResponse = await _cloudService.escalateToCloud(
+          base64Image: imagePath,
+          query:
+              'Briefly identify the main component or object in the image in 1-2 sentences. '
+              'Start with the component name.',
+        );
+
+        // Parse "LED - a red light-emitting diode" style responses
+        if (visionResponse.contains(' - ')) {
+          component = visionResponse.split(' - ').first.trim();
+          step = visionResponse.trim();
+        } else if (visionResponse.contains('.')) {
+          component = visionResponse.split('.').first.trim();
+          step = visionResponse.trim();
+        } else {
+          component = visionResponse.trim();
+          step = visionResponse.trim();
+        }
+      } catch (e) {
+        _log(
+          '⚠️ Cloud vision failed, using defaults: $e',
+          ConsoleSeverity.warning,
+        );
+        component = 'Component detected';
+        step = 'Local routing successful. Vision unavailable.';
+      }
+    }
+
+    // Use query-based fallback if still empty (text-only mode, no camera)
+    if (component.isEmpty) component = 'component';
+    if (step.isEmpty) step = 'Identified by local model';
 
     final decision = RoutingDecision(
       action: ActionType.localInference,
@@ -258,7 +299,7 @@ ALWAYS call a tool. If unsure which, call escalate_to_expert.
       timestamp: DateTime.now(),
       rawJson: {'tool': 'validate_routine_step', 'args': args},
       toolName: 'validate_routine_step',
-      toolArgs: args,
+      toolArgs: {'component_name': component, 'step_description': step},
     );
     _routingStream.add(decision);
 
@@ -366,15 +407,13 @@ ALWAYS call a tool. If unsure which, call escalate_to_expert.
         'name': 'escalate_to_expert',
         'args': {
           'query': extractValue('query') ?? response,
-          'reason':
-              extractValue('reason') ?? 'Model requested escalation',
+          'reason': extractValue('reason') ?? 'Model requested escalation',
         },
       };
     }
 
     return null;
   }
-
 
   void _updateStatus(String status) {
     _statusMessage = status;
