@@ -418,10 +418,23 @@ Always output a tool call JSON.
                 .replaceAll('<|im_end|>', '')
                 .trim();
 
-            // Aggressively strip conversational filler
+            // Aggressively format the vision text
             var stripped = visionText;
+
+            // If the model ignores the prompt and forms a sentence ending in "is a [noun]"
+            final isMatch = RegExp(
+              r'is a\s+([^,.]+)',
+              caseSensitive: false,
+            ).firstMatch(stripped);
+            if (isMatch != null && isMatch.groupCount >= 1) {
+              stripped = isMatch.group(1)!;
+            }
+
             stripped = stripped.replaceAll(
-              RegExp(r'^(a|an|the|this is|i see)\s+', caseSensitive: false),
+              RegExp(
+                r'^(a|an|the|this is|i see|primary|electronic|component|in|this|image)\s+',
+                caseSensitive: false,
+              ),
               '',
             );
             stripped = stripped.replaceAll(
@@ -517,11 +530,11 @@ Always output a tool call JSON.
 
     _log(
       '🟢 Action: Conversational Reply\n'
-      '   Response: \$responseText',
+      '   Response: $responseText',
       ConsoleSeverity.success,
     );
     _log(
-      '📋 \${jsonEncode(decision.rawJson)}',
+      '📋 ${jsonEncode(decision.rawJson)}',
       ConsoleSeverity.info,
       metadata: decision.rawJson,
     );
