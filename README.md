@@ -8,20 +8,21 @@ TacitNode bridges the "Great Crew Change" knowledge gap by acting as a digital m
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────┐
 │                  TacitNode App                  │
 │                                                 │
 │  📷 Camera Feed                                 │
 │       │                                         │
 │       ▼                                         │
-│  🤖 CopilotService (Cactus LLM - on-device)    │
+│  🧠 Routing Model (gemma3-270m - on-device)     │
 │       │                                         │
-│       ├── validate_routine_step ──▶ ⚡ Local    │
-│       │   (zero latency, offline)     Response  │
+│       ├── validate_routine_step ──▶ 👁️ Local    │
+│       │                             Vision      │
+│       │                          (lfm2-vl-450m) │
 │       │                                         │
-│       └── escalate_to_expert ──▶ ☁️  Gemini    │
-│           (cloud fallback)           API        │
+│       └── escalate_to_expert ────▶ ☁️ Gemini    │
+│                                      API        │
 │                                                 │
 │  🖥️ Debug Console (live routing decisions)      │
 └─────────────────────────────────────────────────┘
@@ -38,9 +39,10 @@ TacitNode bridges the "Great Crew Change" knowledge gap by acting as a digital m
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+|-------|------------|
 | Frontend | Flutter (Dart) |
-| Local LLM | Cactus SDK (`qwen3-0.6`) |
+| Local Routing Model | Cactus SDK (`gemma3-270m` / FunctionGemma) |
+| Local Vision Model | Cactus SDK (`lfm2-vl-450m`) |
 | Cloud Fallback | Gemini 2.0 Flash API |
 | Camera | `camera` package |
 | Secrets | `flutter_dotenv` (`.env` gitignored) |
@@ -70,12 +72,12 @@ echo 'GEMINI_API_KEY=your_key_here' > .env
 flutter run
 ```
 
-> **Note:** On first launch, the app downloads the `qwen3-0.6` model (~600 MB). This requires a one-time internet connection.
+> **Note:** On first launch, the app downloads both the routing model (`gemma3-270m`) and the vision model (`lfm2-vl-450m`) (~700 MB total). This requires a one-time internet connection.
 
 ### Platform Setup
 
 | Platform | Required Config |
-|----------|----------------|
+|----------|-----------------|
 | Android | Camera + Internet permissions (pre-configured in `AndroidManifest.xml`) |
 | iOS | `NSCameraUsageDescription` (pre-configured in `Info.plist`) |
 | macOS | Network client entitlement (pre-configured). No camera support — runs in text-only mode. |
@@ -100,12 +102,12 @@ lib/
 
 ## How Routing Works
 
-1. **Technician asks a question** (e.g., *"What is this?"*) while pointing the camera at equipment
-2. **Local model processes the query** using Cactus on-device inference (~12 tok/s)
-3. **Tool call decision:**
-   - `validate_routine_step` → responds locally in milliseconds (green in debug console)
-   - `escalate_to_expert` → captures frame, encodes to base64, sends to Gemini API (amber in debug console)
-4. **If no tool is called** → automatic cloud escalation as safety fallback
+1. **Technician asks a visual question** (e.g., *"What is this?"*) while pointing the camera at equipment
+2. **FunctionGemma processes the text query** (~15 tok/s). It recognizes the intent and calls `validate_routine_step` using an `"unknown"` placeholder.
+3. **Tool Call Handoff:**
+   - `validate_routine_step` → App intercepts the placeholder and feeds the camera framework to the **Local Vision Model (`lfm2-vl-450m`)** which identifies the component offline (green in debug console).
+   - `escalate_to_expert` (or diagnostic questions) → captures frame, encodes to base64, sends to Gemini API (amber in debug console).
+4. **If no tool is called / fallback fails** → automatic cloud escalation as safety net.
 
 ## Demo Script
 
