@@ -374,14 +374,17 @@ Always output a tool call JSON.
             messages: [
               ChatMessage(
                 content:
-                    'What electronic component or object is this? '
-                    'Reply with ONLY a single short phrase (1-3 words) naming the object, followed by a period. '
-                    'Examples: "Red LED.", "Arduino Uno.", "Breadboard.", "Resistor."',
+                    'Name the primary electronic component or object in this image. '
+                    'Rules:\n'
+                    '1. Reply with ONLY 1 or 2 words.\n'
+                    '2. NEVER use sentences.\n'
+                    '3. NEVER use articles (a, an, the).\n'
+                    'Examples: "LED", "Arduino", "Breadboard", "Capacitor"',
                 role: 'user',
                 images: [imageFilePath],
               ),
             ],
-            params: CactusCompletionParams(maxTokens: 100),
+            params: CactusCompletionParams(maxTokens: 20, temperature: 0.1),
           );
 
           if (visionResult.success && visionResult.response.isNotEmpty) {
@@ -393,16 +396,24 @@ Always output a tool call JSON.
                 .replaceAll('<|im_end|>', '')
                 .trim();
 
-            // Parse response for component name
-            if (visionText.contains(' - ')) {
-              component = visionText.split(' - ').first.trim();
-              step = visionText;
-            } else if (visionText.contains('.')) {
-              component = visionText.split('.').first.trim();
-              step = visionText;
+            // Aggressively strip conversational filler
+            var stripped = visionText;
+            stripped = stripped.replaceAll(
+              RegExp(r'^(a|an|the|this is|i see)\s+', caseSensitive: false),
+              '',
+            );
+            stripped = stripped.replaceAll(
+              RegExp(r'\..*'),
+              '',
+            ); // Drop everything after first period
+            stripped = stripped.trim();
+
+            if (stripped.contains(' - ')) {
+              component = stripped.split(' - ').first.trim();
+              step = stripped;
             } else {
-              component = visionText;
-              step = visionText;
+              component = stripped.split('\n').first.trim();
+              step = stripped;
             }
           }
         } catch (e) {
