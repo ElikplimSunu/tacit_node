@@ -305,6 +305,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
               child: OfflineBanner(
                 isOnline: _isOnline,
                 isSimulatingOffline: _isSimulatingOffline,
+                onToggleOffline: () => _connectivity.toggleOfflineSimulation(),
               ),
             ),
 
