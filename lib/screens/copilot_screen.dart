@@ -97,12 +97,18 @@ class _CopilotScreenState extends State<CopilotScreen> {
     });
 
     // Capture a frame if camera is available
+    String? imageFilePath;
     String? base64Image;
     if (_camera.isInitialized) {
+      imageFilePath = await _camera.captureFrame();
       base64Image = await _camera.captureFrameAsBase64();
     }
 
-    final response = await _copilot.processQuery(query, imagePath: base64Image);
+    final response = await _copilot.processQuery(
+      query,
+      imageFilePath: imageFilePath,
+      base64Image: base64Image,
+    );
 
     if (mounted) {
       setState(() {

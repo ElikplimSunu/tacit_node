@@ -9,7 +9,12 @@ import 'cloud_service.dart';
 /// Manages the local Cactus LLM for function calling and routes
 /// between local inference and cloud escalation.
 class CopilotService {
+  // FunctionGemma for tool-call routing
   final CactusLM _lm = CactusLM(enableToolFiltering: true);
+
+  // Local vision model for image identification
+  final CactusLM _visionLm = CactusLM();
+  bool _isVisionReady = false;
 
   final CloudService _cloudService = CloudService();
 
@@ -48,14 +53,14 @@ class CopilotService {
           'component_name': ToolParameter(
             type: 'string',
             description:
-                'Name of the identified component (e.g. "LED", "breadboard")',
-            required: true,
+                'Name of the identified component (e.g. "LED", "breadboard"). Leave empty if unsure.',
+            required: false,
           ),
           'step_description': ToolParameter(
             type: 'string',
             description:
-                'Brief description of what was identified or validated.',
-            required: true,
+                'Brief description of what was identified or validated. Leave empty if unsure.',
+            required: false,
           ),
         },
       ),
@@ -91,8 +96,9 @@ class CopilotService {
 
   static const String _systemPrompt = '''
 You are TacitNode, a field equipment copilot assisting a technician.
-For identification queries, call validate_routine_step.
-For diagnostic or fault queries, call escalate_to_expert.
+You are a text-only routing model. You cannot see images.
+For identification queries ("what do you see?", "what is this?"), call validate_routine_step. Leave arguments empty so the vision model can identify it.
+For diagnostic or fault queries ("why is this failing?"), call escalate_to_expert.
 Always use a tool.
 ''';
 
@@ -106,25 +112,52 @@ Always use a tool.
     _log('Initializing Cactus LLM engine…', ConsoleSeverity.info);
 
     try {
+      // ---- 1. Download & init FunctionGemma (routing) ----
+      _updateStatus('Downloading routing model…');
       await _lm.downloadModel(
         model: 'gemma3-270m',
         downloadProcessCallback: (progress, status, isError) {
           if (isError) {
             _log('Download error: $status', ConsoleSeverity.error);
           } else {
-            _downloadProgress = progress ?? 0.0;
+            _downloadProgress = (progress ?? 0.0) * 0.5; // 0-50%
             _updateStatus(
-              'Downloading: ${(_downloadProgress * 100).toStringAsFixed(0)}%',
+              'Routing model: ${(_downloadProgress * 200).toStringAsFixed(0)}%',
             );
           }
         },
       );
 
-      _updateStatus('Loading model…');
+      _updateStatus('Loading routing model…');
       await _lm.initializeModel();
+      _log('✅ FunctionGemma loaded.', ConsoleSeverity.success);
+
+      // ---- 2. Download & init vision model ----
+      _updateStatus('Downloading vision model…');
+      await _visionLm.downloadModel(
+        model: 'lfm2-vl-450m',
+        downloadProcessCallback: (progress, status, isError) {
+          if (isError) {
+            _log('Vision download error: $status', ConsoleSeverity.error);
+          } else {
+            _downloadProgress = 0.5 + (progress ?? 0.0) * 0.5; // 50-100%
+            _updateStatus(
+              'Vision model: ${((progress ?? 0.0) * 100).toStringAsFixed(0)}%',
+            );
+          }
+        },
+      );
+
+      _updateStatus('Loading vision model…');
+      await _visionLm.initializeModel(
+        params: CactusInitParams(model: 'lfm2-vl-450m', contextSize: 1024),
+      );
+      _isVisionReady = true;
+      _log('✅ Vision model loaded.', ConsoleSeverity.success);
+
       _isModelReady = true;
       _updateStatus('Ready');
-      _log('✅ Model loaded and ready.', ConsoleSeverity.success);
+      _log('✅ All models ready.', ConsoleSeverity.success);
     } catch (e) {
       _updateStatus('Error');
       _log('Model init failed: $e', ConsoleSeverity.error);
@@ -135,9 +168,14 @@ Always use a tool.
   // Query processing
   // ---------------------------------------------------------------------------
 
-  /// Processes a technician's query, optionally with a captured image.
-  /// The local model decides whether to handle it locally or escalate.
-  Future<String> processQuery(String query, {String? imagePath}) async {
+  /// Processes a technician's query, optionally with captured images.
+  /// [imageFilePath] is the raw file path (for local vision model).
+  /// [base64Image] is the base64-encoded image (for cloud fallback).
+  Future<String> processQuery(
+    String query, {
+    String? imageFilePath,
+    String? base64Image,
+  }) async {
     if (!_isModelReady) {
       _log('Model not ready. Cannot process query.', ConsoleSeverity.warning);
       return 'Model is still loading. Please wait.';
@@ -147,9 +185,9 @@ Always use a tool.
     _log('📥 Query: "$query"', ConsoleSeverity.info);
 
     try {
-      final userMessage = imagePath != null
-          ? ChatMessage(content: query, role: 'user', images: [imagePath])
-          : ChatMessage(content: query, role: 'user');
+      // FunctionGemma is text-only — do NOT pass images to it.
+      // Images are handled by the vision model in _handleLocalValidation.
+      final userMessage = ChatMessage(content: query, role: 'user');
 
       final messages = [
         ChatMessage(content: _systemPrompt, role: 'system'),
@@ -161,15 +199,55 @@ Always use a tool.
         params: CactusCompletionParams(tools: _tools),
       );
 
+      // ---- Log raw model output for debugging ----
+      _log(
+        '🔬 Raw result: success=${result.success}, '
+        'toolCalls=${result.toolCalls.length}, '
+        'tokens=${result.totalTokens}, '
+        'tps=${result.tokensPerSecond.toStringAsFixed(1)}',
+        ConsoleSeverity.info,
+      );
+      _log('🔬 Raw response text: "${result.response}"', ConsoleSeverity.info);
+      if (result.toolCalls.isNotEmpty) {
+        for (final tc in result.toolCalls) {
+          _log(
+            '🔬 Tool call: ${tc.name}(${jsonEncode(tc.arguments)})',
+            ConsoleSeverity.info,
+          );
+        }
+      }
+
       if (!result.success) {
         _log(
-          '🟡 Local inference failed (likely malformed JSON) — auto-escalating to cloud',
+          '🟡 Local inference failed — auto-escalating to cloud',
           ConsoleSeverity.warning,
         );
+        // Still try fallback parsing on the raw text before escalating
+        final parsed = _tryParseToolFromResponse(result.response);
+        if (parsed != null) {
+          _log(
+            '🔧 Recovered tool call from failed result: ${parsed['name']}',
+            ConsoleSeverity.info,
+          );
+          final toolName = parsed['name'] as String;
+          final toolArgs = Map<String, dynamic>.from(
+            parsed['args'] as Map<String, dynamic>? ?? {},
+          );
+          if (toolName == 'validate_routine_step') {
+            return await _handleLocalValidation(
+              toolArgs,
+              query,
+              imageFilePath,
+              base64Image,
+            );
+          } else if (toolName == 'escalate_to_expert') {
+            return await _handleCloudEscalation(toolArgs, query, base64Image);
+          }
+        }
         return await _handleCloudEscalation(
           {'query': query, 'reason': 'Local model produced unparseable output'},
           query,
-          imagePath,
+          base64Image,
         );
       }
 
@@ -180,7 +258,12 @@ Always use a tool.
 
       // Check for tool calls
       if (result.toolCalls.isNotEmpty) {
-        return await _handleToolCalls(result.toolCalls, query, imagePath);
+        return await _handleToolCalls(
+          result.toolCalls,
+          query,
+          imageFilePath,
+          base64Image,
+        );
       }
 
       // Fallback: try to parse tool calls from raw response text
@@ -195,9 +278,14 @@ Always use a tool.
           parsed['args'] as Map<String, dynamic>? ?? {},
         );
         if (toolName == 'validate_routine_step') {
-          return await _handleLocalValidation(toolArgs, query, imagePath);
+          return await _handleLocalValidation(
+            toolArgs,
+            query,
+            imageFilePath,
+            base64Image,
+          );
         } else if (toolName == 'escalate_to_expert') {
-          return await _handleCloudEscalation(toolArgs, query, imagePath);
+          return await _handleCloudEscalation(toolArgs, query, base64Image);
         }
       }
 
@@ -209,7 +297,7 @@ Always use a tool.
       return await _handleCloudEscalation(
         {'query': query, 'reason': 'Local model did not call a tool'},
         query,
-        imagePath,
+        base64Image,
       );
     } catch (e) {
       _log('Error: $e', ConsoleSeverity.error);
@@ -225,7 +313,8 @@ Always use a tool.
   Future<String> _handleToolCalls(
     List<ToolCall> toolCalls,
     String originalQuery,
-    String? imagePath,
+    String? imageFilePath,
+    String? base64Image,
   ) async {
     for (final call in toolCalls) {
       final toolName = call.name;
@@ -234,9 +323,18 @@ Always use a tool.
       );
 
       if (toolName == 'validate_routine_step') {
-        return await _handleLocalValidation(toolArgs, originalQuery, imagePath);
+        return await _handleLocalValidation(
+          toolArgs,
+          originalQuery,
+          imageFilePath,
+          base64Image,
+        );
       } else if (toolName == 'escalate_to_expert') {
-        return await _handleCloudEscalation(toolArgs, originalQuery, imagePath);
+        return await _handleCloudEscalation(
+          toolArgs,
+          originalQuery,
+          base64Image,
+        );
       }
     }
 
@@ -247,45 +345,76 @@ Always use a tool.
   Future<String> _handleLocalValidation(
     Map<String, dynamic> args,
     String originalQuery,
-    String? imagePath,
+    String? imageFilePath,
+    String? base64Image,
   ) async {
     var component = (args['component_name'] as String?)?.trim() ?? '';
     var step = (args['step_description'] as String?)?.trim() ?? '';
 
-    // FunctionGemma can't see images — if args are empty and we have an image,
-    // use Gemini vision specifically for identification (NOT a full escalation).
-    if ((component.isEmpty || step.isEmpty) && imagePath != null) {
-      _log(
-        '🔍 Local routing OK → cloud vision for identification',
-        ConsoleSeverity.info,
-      );
-
-      try {
-        final visionResponse = await _cloudService.escalateToCloud(
-          base64Image: imagePath,
-          query:
-              'Briefly identify the main component or object in the image in 1-2 sentences. '
-              'Start with the component name.',
-        );
-
-        // Parse "LED - a red light-emitting diode" style responses
-        if (visionResponse.contains(' - ')) {
-          component = visionResponse.split(' - ').first.trim();
-          step = visionResponse.trim();
-        } else if (visionResponse.contains('.')) {
-          component = visionResponse.split('.').first.trim();
-          step = visionResponse.trim();
-        } else {
-          component = visionResponse.trim();
-          step = visionResponse.trim();
-        }
-      } catch (e) {
+    // FunctionGemma can't see images — use the local vision model.
+    if ((component.isEmpty || step.isEmpty) && imageFilePath != null) {
+      if (_isVisionReady) {
         _log(
-          '⚠️ Cloud vision failed, using defaults: $e',
-          ConsoleSeverity.warning,
+          '�️ Running local vision model for identification…',
+          ConsoleSeverity.info,
         );
-        component = 'Component detected';
-        step = 'Local routing successful. Vision unavailable.';
+
+        try {
+          final visionResult = await _visionLm.generateCompletion(
+            messages: [
+              ChatMessage(
+                content:
+                    'Identify the main component or object in this image. '
+                    'Reply with the component name and a brief description.',
+                role: 'user',
+                images: [imageFilePath],
+              ),
+            ],
+            params: CactusCompletionParams(maxTokens: 100),
+          );
+
+          if (visionResult.success && visionResult.response.isNotEmpty) {
+            _log(
+              '👁️ Vision: ${visionResult.tokensPerSecond.toStringAsFixed(1)} tok/s',
+              ConsoleSeverity.info,
+            );
+            final visionText = visionResult.response.trim();
+
+            // Parse response for component name
+            if (visionText.contains(' - ')) {
+              component = visionText.split(' - ').first.trim();
+              step = visionText;
+            } else if (visionText.contains('.')) {
+              component = visionText.split('.').first.trim();
+              step = visionText;
+            } else {
+              component = visionText;
+              step = visionText;
+            }
+          }
+        } catch (e) {
+          _log('⚠️ Local vision failed: $e', ConsoleSeverity.warning);
+        }
+      }
+
+      // Cloud vision as fallback if local vision unavailable or failed
+      if ((component.isEmpty || step.isEmpty) && base64Image != null) {
+        _log(
+          '🔍 Local vision unavailable → cloud vision fallback',
+          ConsoleSeverity.info,
+        );
+        try {
+          final cloudResponse = await _cloudService.escalateToCloud(
+            base64Image: base64Image,
+            query: 'Briefly identify the main component in the image.',
+          );
+          component = cloudResponse.split('.').first.trim();
+          step = cloudResponse.trim();
+        } catch (e) {
+          _log('⚠️ Cloud vision failed: $e', ConsoleSeverity.warning);
+          component = 'Component detected';
+          step = 'Local routing successful. Vision unavailable.';
+        }
       }
     }
 
@@ -436,6 +565,7 @@ Always use a tool.
   /// Clean up.
   void dispose() {
     _lm.unload();
+    _visionLm.unload();
     _consoleStream.close();
     _routingStream.close();
   }
