@@ -282,6 +282,22 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
             return _handleAnswerQuery(toolArgs);
           }
         }
+        final lowerQuery = query.toLowerCase();
+        if (lowerQuery.contains('what do you see') ||
+            lowerQuery.contains('what is this') ||
+            lowerQuery.contains('identify')) {
+          _log(
+            '🔄 Engine failed but query implies vision. Forcing local vision.',
+            ConsoleSeverity.info,
+          );
+          return await _handleLocalValidation(
+            {'component_name': 'unknown', 'step_description': 'identifying'},
+            query,
+            imageFilePath,
+            base64Image,
+          );
+        }
+
         return await _handleCloudEscalation(
           {'query': query, 'reason': 'Local model produced unparseable output'},
           query,
@@ -334,6 +350,22 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
         '🟡 No tool call detected — auto-escalating to cloud',
         ConsoleSeverity.warning,
       );
+      final lowerQuery = query.toLowerCase();
+      if (lowerQuery.contains('what do you see') ||
+          lowerQuery.contains('what is this') ||
+          lowerQuery.contains('identify')) {
+        _log(
+          '🔄 No tool called but query implies vision. Forcing local vision.',
+          ConsoleSeverity.info,
+        );
+        return await _handleLocalValidation(
+          {'component_name': 'unknown', 'step_description': 'identifying'},
+          query,
+          imageFilePath,
+          base64Image,
+        );
+      }
+
       return await _handleCloudEscalation(
         {'query': query, 'reason': 'Local model did not call a tool'},
         query,
