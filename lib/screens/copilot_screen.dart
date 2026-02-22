@@ -50,6 +50,9 @@ class _CopilotScreenState extends State<CopilotScreen> {
   // New state for metrics overlay
   bool _showMetricsOverlay = false;
 
+  // New state for FAB
+  bool _isFabExpanded = false;
+
   // New state for connectivity
   bool _isOnline = true;
   bool _isSimulatingOffline = false;
@@ -152,6 +155,20 @@ class _CopilotScreenState extends State<CopilotScreen> {
   void _toggleMetricsOverlay() {
     setState(() {
       _showMetricsOverlay = !_showMetricsOverlay;
+      // Close FAB when opening metrics
+      if (_showMetricsOverlay && _isFabExpanded) {
+        _isFabExpanded = false;
+      }
+    });
+  }
+
+  void _handleFabExpandedChanged(bool isExpanded) {
+    setState(() {
+      _isFabExpanded = isExpanded;
+      // Close metrics when opening FAB
+      if (_isFabExpanded && _showMetricsOverlay) {
+        _showMetricsOverlay = false;
+      }
     });
   }
 
@@ -333,26 +350,40 @@ class _CopilotScreenState extends State<CopilotScreen> {
               children: [
                 // Query input bar
                 _buildInputBar(),
-                // Debug console
-                DebugConsole(
-                  entries: _consoleEntries,
-                  scrollController: _consoleScrollController,
-                  isExpanded: _isConsoleExpanded,
-                  onToggle: () =>
-                      setState(() => _isConsoleExpanded = !_isConsoleExpanded),
+                // Debug console (overlaps input bar slightly)
+                Transform.translate(
+                  offset: const Offset(
+                    0,
+                    -16,
+                  ), // Move up to hide rounded corner gaps
+                  child: DebugConsole(
+                    entries: _consoleEntries,
+                    scrollController: _consoleScrollController,
+                    isExpanded: _isConsoleExpanded,
+                    onToggle: () => setState(
+                      () => _isConsoleExpanded = !_isConsoleExpanded,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
 
-          // Layer 8: Demo controls FAB (bottom-right)
-          Positioned(
-            bottom: _isConsoleExpanded ? 320 : 120,
+          // Layer 8: Demo controls FAB (animated with console)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            bottom:
+                (_isConsoleExpanded ? 336 : 136) +
+                80 +
+                20, // Updated for new console heights
             right: 16,
             child: DemoControlsFAB(
               onPresetSelected: _handlePresetSelected,
               onResetMetrics: _handleResetMetrics,
               onToggleMetrics: _toggleMetricsOverlay,
+              onExpandedChanged: _handleFabExpandedChanged,
+              isExpanded: _isFabExpanded,
             ),
           ),
         ],
@@ -594,7 +625,12 @@ class _CopilotScreenState extends State<CopilotScreen> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(
+            12,
+            8,
+            12,
+            24,
+          ), // Extra bottom padding for console overlap
           decoration: BoxDecoration(
             color: AppColors.surface.withValues(alpha: 0.6),
           ), // Glassmorphism

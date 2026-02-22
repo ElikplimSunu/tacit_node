@@ -8,12 +8,16 @@ class DemoControlsFAB extends StatefulWidget {
   final Function(String query, bool simulateOffline) onPresetSelected;
   final VoidCallback onResetMetrics;
   final VoidCallback onToggleMetrics;
+  final ValueChanged<bool>? onExpandedChanged;
+  final bool? isExpanded;
 
   const DemoControlsFAB({
     super.key,
     required this.onPresetSelected,
     required this.onResetMetrics,
     required this.onToggleMetrics,
+    this.onExpandedChanged,
+    this.isExpanded,
   });
 
   @override
@@ -45,6 +49,28 @@ class _DemoControlsFABState extends State<DemoControlsFAB>
       begin: 0.0,
       end: 0.125,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+    // Initialize from parent state if provided
+    if (widget.isExpanded == true) {
+      _isExpanded = true;
+      _controller.value = 1.0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(DemoControlsFAB oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Sync with parent state
+    if (widget.isExpanded != null && widget.isExpanded != _isExpanded) {
+      setState(() {
+        _isExpanded = widget.isExpanded!;
+        if (_isExpanded) {
+          _controller.forward();
+        } else {
+          _controller.reverse();
+        }
+      });
+    }
   }
 
   @override
@@ -61,6 +87,8 @@ class _DemoControlsFABState extends State<DemoControlsFAB>
       } else {
         _controller.reverse();
       }
+      // Notify parent of state change
+      widget.onExpandedChanged?.call(_isExpanded);
     });
   }
 
@@ -98,8 +126,6 @@ class _DemoControlsFABState extends State<DemoControlsFAB>
                     _buildPresetButton(DemoPreset.defaults[index], index),
               ),
 
-              const SizedBox(height: 12),
-
               // Control buttons
               _buildControlButton(
                 icon: Icons.analytics,
@@ -119,7 +145,7 @@ class _DemoControlsFABState extends State<DemoControlsFAB>
                 tooltip: 'Reset Metrics',
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 72), // Extra space for main FAB
             ],
           ),
 
@@ -224,16 +250,48 @@ class _DemoControlsFABState extends State<DemoControlsFAB>
           offset: Offset(0, (1 - curvedProgress) * 20),
           child: Opacity(
             opacity: curvedProgress,
-            child: FloatingActionButton(
-              mini: true,
-              backgroundColor: color,
-              onPressed: () {
-                onPressed();
-                _toggleExpanded();
-              },
-              heroTag: 'control_$index',
-              tooltip: tooltip,
-              child: Icon(icon, size: 20),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Label
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: color.withValues(alpha: 0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    tooltip,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // Button
+                FloatingActionButton(
+                  mini: true,
+                  backgroundColor: color,
+                  onPressed: () {
+                    onPressed();
+                    _toggleExpanded();
+                  },
+                  heroTag: 'control_$index',
+                  tooltip: tooltip,
+                  child: Icon(icon, size: 20),
+                ),
+              ],
             ),
           ),
         );

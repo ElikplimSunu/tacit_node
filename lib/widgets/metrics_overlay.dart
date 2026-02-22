@@ -23,8 +23,8 @@ class MetricsOverlay extends StatelessWidget {
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
-      top: isVisible ? 80 : -300,
-      right: 16,
+      top: isVisible ? 80 : -400,
+      right: isVisible ? 16 : -300,
       child: _buildOverlayCard(),
     );
   }

@@ -62,7 +62,9 @@ class _DebugConsoleState extends State<DebugConsole> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
-          height: widget.isExpanded ? 320 : 120,
+          height: widget.isExpanded
+              ? 336
+              : 136, // +16px to compensate for upward offset
           decoration: BoxDecoration(
             color: const Color(
               0x771A1A2E,
