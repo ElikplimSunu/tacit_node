@@ -147,7 +147,7 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
       // ---- 1. Download & init FunctionGemma (routing) ----
       _updateStatus('Downloading routing model…');
       await _lm.downloadModel(
-        model: 'gemma3-270m',
+        model: 'functiongemma-270m',
         downloadProcessCallback: (progress, status, isError) {
           if (isError) {
             _log('Download error: $status', ConsoleSeverity.error);
