@@ -5,8 +5,14 @@ import 'package:flutter/material.dart';
 import '../models/routing_decision.dart';
 import '../services/camera_service.dart';
 import '../services/copilot_service.dart';
+import '../services/metrics_service.dart';
+import '../services/connectivity_service.dart';
 import '../widgets/debug_console.dart';
 import '../widgets/model_status_bar.dart';
+import '../widgets/routing_indicator.dart';
+import '../widgets/metrics_overlay.dart';
+import '../widgets/demo_controls_fab.dart';
+import '../widgets/offline_banner.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 
@@ -21,7 +27,9 @@ class CopilotScreen extends StatefulWidget {
 }
 
 class _CopilotScreenState extends State<CopilotScreen> {
-  final CopilotService _copilot = CopilotService();
+  final MetricsService _metrics = MetricsService();
+  final ConnectivityService _connectivity = ConnectivityService();
+  late final CopilotService _copilot;
   final CameraService _camera = CameraService();
 
   final TextEditingController _queryController = TextEditingController();
@@ -31,21 +39,51 @@ class _CopilotScreenState extends State<CopilotScreen> {
   bool _isConsoleExpanded = false;
   bool _isProcessing = false;
   String _responseText = '';
+  RoutingDecision? _lastRoutingDecision;
   String _statusText = 'Idle';
   double _downloadProgress = 0.0;
   bool _isModelReady = false;
 
+  // New state for routing indicator
+  RoutingState _routingState = RoutingState.idle;
+
+  // New state for metrics overlay
+  bool _showMetricsOverlay = false;
+
+  // New state for connectivity
+  bool _isOnline = true;
+  bool _isSimulatingOffline = false;
+
   StreamSubscription<ConsoleEntry>? _consoleSub;
   StreamSubscription<RoutingDecision>? _routingSub;
+  StreamSubscription<bool>? _connectivitySub;
   Timer? _statusTimer;
 
   @override
   void initState() {
     super.initState();
+    // Initialize CopilotService with metrics and connectivity services
+    _copilot = CopilotService(
+      metricsService: _metrics,
+      connectivityService: _connectivity,
+    );
     _initializeServices();
   }
 
   Future<void> _initializeServices() async {
+    // Initialize connectivity service
+    await _connectivity.initialize();
+
+    // Listen to connectivity stream
+    _connectivitySub = _connectivity.connectivityStream.listen((isOnline) {
+      if (mounted) {
+        setState(() {
+          _isOnline = isOnline;
+          _isSimulatingOffline = _connectivity.isSimulatingOffline;
+        });
+      }
+    });
+
     // Listen to console stream
     _consoleSub = _copilot.consoleStream.listen((entry) {
       if (mounted) {
@@ -56,7 +94,11 @@ class _CopilotScreenState extends State<CopilotScreen> {
 
     // Listen to routing decisions
     _routingSub = _copilot.routingStream.listen((decision) {
-      // Routing events are already logged to the console
+      if (mounted) {
+        setState(() {
+          _lastRoutingDecision = decision;
+        });
+      }
     });
 
     // Poll status updates
@@ -90,6 +132,29 @@ class _CopilotScreenState extends State<CopilotScreen> {
     });
   }
 
+  void _handlePresetSelected(String query, bool simulateOffline) {
+    _queryController.text = query;
+    if (simulateOffline && !_isSimulatingOffline) {
+      _connectivity.toggleOfflineSimulation();
+    }
+    _handleQuery();
+  }
+
+  void _handleResetMetrics() {
+    _metrics.reset();
+    setState(() {
+      _consoleEntries.clear();
+      _responseText = '';
+      _lastRoutingDecision = null;
+    });
+  }
+
+  void _toggleMetricsOverlay() {
+    setState(() {
+      _showMetricsOverlay = !_showMetricsOverlay;
+    });
+  }
+
   Future<void> _handleQuery() async {
     final query = _queryController.text.trim();
     if (query.isEmpty || _isProcessing) return;
@@ -97,6 +162,8 @@ class _CopilotScreenState extends State<CopilotScreen> {
     setState(() {
       _isProcessing = true;
       _responseText = '';
+      _lastRoutingDecision = null;
+      _routingState = RoutingState.analyzingLocal;
     });
 
     // Capture a frame if camera is available
@@ -113,10 +180,23 @@ class _CopilotScreenState extends State<CopilotScreen> {
       base64Image: base64Image,
     );
 
+    // Update routing state based on decision
+    if (_lastRoutingDecision != null) {
+      if (_lastRoutingDecision!.action == ActionType.cloudEscalation) {
+        setState(() => _routingState = RoutingState.escalatingCloud);
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+
+    // Complete routing animation
+    setState(() => _routingState = RoutingState.complete);
+    await Future.delayed(const Duration(milliseconds: 300));
+
     if (mounted) {
       setState(() {
         _responseText = _sanitizeResponse(response);
         _isProcessing = false;
+        _routingState = RoutingState.idle;
       });
     }
 
@@ -145,9 +225,12 @@ class _CopilotScreenState extends State<CopilotScreen> {
   void dispose() {
     _consoleSub?.cancel();
     _routingSub?.cancel();
+    _connectivitySub?.cancel();
     _statusTimer?.cancel();
     _copilot.dispose();
     _camera.dispose();
+    _metrics.dispose();
+    _connectivity.dispose();
     _queryController.dispose();
     _consoleScrollController.dispose();
     super.dispose();
@@ -190,19 +273,57 @@ class _CopilotScreenState extends State<CopilotScreen> {
               status: _statusText,
               downloadProgress: _downloadProgress,
               isModelReady: _isModelReady,
+              isOnline: _isOnline,
+              isSimulatingOffline: _isSimulatingOffline,
+              onToggleMetrics: _toggleMetricsOverlay,
             ),
           ),
 
-          // Layer 4: Response card (when showing results)
-          if (_responseText.isNotEmpty)
+          // Layer 3.5: Offline banner (below status bar)
+          if (!_isOnline || _isSimulatingOffline)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 50,
+              left: 0,
+              right: 0,
+              child: OfflineBanner(
+                isOnline: _isOnline,
+                isSimulatingOffline: _isSimulatingOffline,
+              ),
+            ),
+
+          // Layer 4: Routing indicator (center)
+          if (_routingState != RoutingState.idle)
+            Center(
+              child: RoutingIndicator(
+                state: _routingState,
+                onComplete: () {
+                  setState(() => _routingState = RoutingState.idle);
+                },
+              ),
+            ),
+
+          // Layer 5: Response card (when showing results)
+          if (_responseText.isNotEmpty && _lastRoutingDecision != null)
             Positioned(
               top: MediaQuery.of(context).padding.top + 70,
               left: 16,
               right: 16,
-              child: _buildResponseCard(),
+              child: _buildResponseCard(_lastRoutingDecision!, _responseText),
             ),
 
-          // Layer 5: Bottom input + debug console
+          // Layer 6: Metrics overlay (top-right)
+          StreamBuilder(
+            stream: _metrics.metricsStream,
+            builder: (context, snapshot) {
+              return MetricsOverlay(
+                metrics: _metrics.currentMetrics,
+                isVisible: _showMetricsOverlay,
+                onClose: _toggleMetricsOverlay,
+              );
+            },
+          ),
+
+          // Layer 7: Bottom input + debug console
           Positioned(
             bottom: 0,
             left: 0,
@@ -221,6 +342,17 @@ class _CopilotScreenState extends State<CopilotScreen> {
                       setState(() => _isConsoleExpanded = !_isConsoleExpanded),
                 ),
               ],
+            ),
+          ),
+
+          // Layer 8: Demo controls FAB (bottom-right)
+          Positioned(
+            bottom: _isConsoleExpanded ? 320 : 120,
+            right: 16,
+            child: DemoControlsFAB(
+              onPresetSelected: _handlePresetSelected,
+              onResetMetrics: _handleResetMetrics,
+              onToggleMetrics: _toggleMetricsOverlay,
             ),
           ),
         ],
@@ -280,7 +412,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
     );
   }
 
-  Widget _buildResponseCard() {
+  Widget _buildResponseCard(RoutingDecision decision, String response) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
@@ -290,15 +422,16 @@ class _CopilotScreenState extends State<CopilotScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: const Color(0x881A1A2E), // Glassmorphism
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: _responseText.startsWith('☁️')
-                  ? AppColors.warning.withValues(alpha: 0.4)
-                  : AppColors.success.withValues(alpha: 0.4),
+              color: decision.routingColor.withValues(alpha: 0.5),
+              width: 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 16,
+                color: decision.routingColor.withValues(alpha: 0.2),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -306,45 +439,14 @@ class _CopilotScreenState extends State<CopilotScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    _responseText.startsWith('☁️')
-                        ? Icons.cloud
-                        : Icons.check_circle,
-                    size: 16,
-                    color: _responseText.startsWith('☁️')
-                        ? AppColors.warning
-                        : AppColors.success,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _responseText.startsWith('☁️')
-                        ? 'EXPERT ANALYSIS'
-                        : 'LOCAL VALIDATION',
-                    style: AppTypography.labelSmall.copyWith(
-                      color: _responseText.startsWith('☁️')
-                          ? AppColors.warning
-                          : AppColors.success,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => setState(() => _responseText = ''),
-                    child: const Icon(
-                      Icons.close,
-                      size: 18,
-                      color: AppColors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
+              _buildCardHeader(decision),
+              const SizedBox(height: 8),
+              _buildMetricsBadges(decision),
               const SizedBox(height: 8),
               Flexible(
                 child: SingleChildScrollView(
                   child: Text(
-                    _responseText,
+                    response,
                     style: AppTypography.bodySmall.copyWith(
                       color: AppColors.textPrimary,
                       fontSize: 13,
@@ -353,9 +455,136 @@ class _CopilotScreenState extends State<CopilotScreen> {
                   ),
                 ),
               ),
+              if (decision.routingPath.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _buildRoutingPath(decision),
+              ],
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCardHeader(RoutingDecision decision) {
+    return Row(
+      children: [
+        Icon(decision.routingIcon, size: 16, color: decision.routingColor),
+        const SizedBox(width: 8),
+        Text(
+          decision.actionLabel,
+          style: AppTypography.labelSmall.copyWith(
+            color: decision.routingColor,
+            letterSpacing: 1.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          decision.formattedTime,
+          style: AppTypography.labelSmall.copyWith(color: AppColors.textMuted),
+        ),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: () => setState(() {
+            _responseText = '';
+            _lastRoutingDecision = null;
+          }),
+          child: const Icon(Icons.close, size: 18, color: AppColors.textMuted),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricsBadges(RoutingDecision decision) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        if (decision.latencyMs != null)
+          _buildMetricBadge(
+            icon: Icons.speed,
+            label: decision.formattedLatency,
+            color: decision.routingColor,
+          ),
+        if (decision.tokensPerSecond != null)
+          _buildMetricBadge(
+            icon: Icons.flash_on,
+            label: decision.formattedTps,
+            color: AppColors.success,
+          ),
+        if (decision.estimatedCost != null && decision.estimatedCost! > 0)
+          _buildMetricBadge(
+            icon: Icons.cloud,
+            label: decision.formattedCost,
+            color: AppColors.warning,
+          ),
+        if (decision.action == ActionType.localInference)
+          _buildMetricBadge(
+            icon: Icons.savings,
+            label: 'Saved \$0.0001',
+            color: AppColors.success,
+          ),
+        if (decision.isOffline)
+          _buildMetricBadge(
+            icon: Icons.airplanemode_active,
+            label: 'Offline',
+            color: AppColors.info,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMetricBadge({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTypography.labelSmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoutingPath(RoutingDecision decision) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.background.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.route, size: 14, color: AppColors.textMuted),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              decision.routingPath,
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.textMuted,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

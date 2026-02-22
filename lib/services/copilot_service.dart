@@ -2,8 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:cactus/cactus.dart';
 import '../models/routing_decision.dart';
+import '../models/session_metrics.dart';
 import '../utils/logger.dart';
 import 'cloud_service.dart';
+import 'metrics_service.dart';
+import 'connectivity_service.dart';
 
 /// The core orchestration service.
 /// Manages the local Cactus LLM for function calling and routes
@@ -17,6 +20,10 @@ class CopilotService {
   bool _isVisionReady = false;
 
   final CloudService _cloudService = CloudService();
+
+  // NEW: Metrics and connectivity services
+  final MetricsService? _metricsService;
+  final ConnectivityService? _connectivityService;
 
   final StreamController<ConsoleEntry> _consoleStream =
       StreamController<ConsoleEntry>.broadcast();
@@ -34,6 +41,13 @@ class CopilotService {
 
   String _statusMessage = 'Idle';
   String get statusMessage => _statusMessage;
+
+  // Constructor with optional services
+  CopilotService({
+    MetricsService? metricsService,
+    ConnectivityService? connectivityService,
+  }) : _metricsService = metricsService,
+       _connectivityService = connectivityService;
 
   // ---------------------------------------------------------------------------
   // Tool definitions
@@ -213,6 +227,9 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
       return 'Model is still loading. Please wait.';
     }
 
+    // NEW: Start timing
+    final startTime = DateTime.now();
+
     _updateStatus('Processing…');
     _log('📥 Query: "$query"', ConsoleSeverity.info);
 
@@ -275,11 +292,22 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
               query,
               imageFilePath,
               base64Image,
+              startTime,
+              result.tokensPerSecond,
             );
           } else if (toolName == 'escalate_to_expert') {
-            return await _handleCloudEscalation(toolArgs, query, base64Image);
+            return await _handleCloudEscalation(
+              toolArgs,
+              query,
+              base64Image,
+              startTime,
+            );
           } else if (toolName == 'answer_query') {
-            return _handleAnswerQuery(toolArgs);
+            return _handleAnswerQuery(
+              toolArgs,
+              startTime,
+              result.tokensPerSecond,
+            );
           }
         }
         final lowerQuery = query.toLowerCase();
@@ -297,6 +325,8 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
             query,
             imageFilePath,
             base64Image,
+            startTime,
+            result.tokensPerSecond,
           );
         }
 
@@ -304,6 +334,7 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
           {'query': query, 'reason': 'Local model produced unparseable output'},
           query,
           base64Image,
+          startTime,
         );
       }
 
@@ -319,6 +350,8 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
           query,
           imageFilePath,
           base64Image,
+          startTime,
+          result.tokensPerSecond,
         );
       }
 
@@ -339,11 +372,22 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
             query,
             imageFilePath,
             base64Image,
+            startTime,
+            result.tokensPerSecond,
           );
         } else if (toolName == 'escalate_to_expert') {
-          return await _handleCloudEscalation(toolArgs, query, base64Image);
+          return await _handleCloudEscalation(
+            toolArgs,
+            query,
+            base64Image,
+            startTime,
+          );
         } else if (toolName == 'answer_query') {
-          return _handleAnswerQuery(toolArgs);
+          return _handleAnswerQuery(
+            toolArgs,
+            startTime,
+            result.tokensPerSecond,
+          );
         }
       }
 
@@ -367,6 +411,8 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
           query,
           imageFilePath,
           base64Image,
+          startTime,
+          result.tokensPerSecond,
         );
       }
 
@@ -374,6 +420,7 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
         {'query': query, 'reason': 'Local model did not call a tool'},
         query,
         base64Image,
+        startTime,
       );
     } catch (e) {
       _log('Error: $e', ConsoleSeverity.error);
@@ -391,6 +438,8 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
     String originalQuery,
     String? imageFilePath,
     String? base64Image,
+    DateTime startTime,
+    double tokensPerSecond,
   ) async {
     for (final call in toolCalls) {
       final toolName = call.name;
@@ -404,15 +453,18 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
           originalQuery,
           imageFilePath,
           base64Image,
+          startTime,
+          tokensPerSecond,
         );
       } else if (toolName == 'escalate_to_expert') {
         return await _handleCloudEscalation(
           toolArgs,
           originalQuery,
           base64Image,
+          startTime,
         );
       } else if (toolName == 'answer_query') {
-        return _handleAnswerQuery(toolArgs);
+        return _handleAnswerQuery(toolArgs, startTime, tokensPerSecond);
       }
     }
 
@@ -425,6 +477,8 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
     String originalQuery,
     String? imageFilePath,
     String? base64Image,
+    DateTime startTime,
+    double? tokensPerSecond,
   ) async {
     var component = (args['component_name'] as String?)?.trim() ?? '';
     var step = (args['step_description'] as String?)?.trim() ?? '';
@@ -536,16 +590,20 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
     if (component.isEmpty) component = 'component';
     if (step.isEmpty) step = 'Identified by local model';
 
-    final decision = RoutingDecision(
+    // NEW: Calculate latency
+    final latencyMs = DateTime.now().difference(startTime).inMilliseconds;
+
+    final decision = _createDecision(
       action: ActionType.localInference,
       confidence: 0.95,
-      timestamp: DateTime.now(),
       rawJson: {
         'tool': 'validate_routine_step',
         'args': {'component_name': component, 'step_description': step},
       },
       toolName: 'validate_routine_step',
       toolArgs: {'component_name': component, 'step_description': step},
+      latencyMs: latencyMs,
+      tokensPerSecond: tokensPerSecond,
     );
     _routingStream.add(decision);
 
@@ -566,20 +624,28 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
     return '✅ $component — $step';
   }
 
-  String _handleAnswerQuery(Map<String, dynamic> args) {
+  String _handleAnswerQuery(
+    Map<String, dynamic> args,
+    DateTime startTime,
+    double? tokensPerSecond,
+  ) {
     final responseText =
         args['response_text'] ?? 'I cannot answer that right now.';
 
-    final decision = RoutingDecision(
+    // NEW: Calculate latency
+    final latencyMs = DateTime.now().difference(startTime).inMilliseconds;
+
+    final decision = _createDecision(
       action: ActionType.localInference,
       confidence: 0.95,
-      timestamp: DateTime.now(),
       rawJson: {
         'tool': 'answer_query',
         'args': {'response_text': responseText},
       },
       toolName: 'answer_query',
       toolArgs: {'response_text': responseText},
+      latencyMs: latencyMs,
+      tokensPerSecond: tokensPerSecond,
     );
     _routingStream.add(decision);
 
@@ -602,17 +668,21 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
     Map<String, dynamic> args,
     String originalQuery,
     String? base64Image,
+    DateTime startTime,
   ) async {
     final query = args['query'] ?? originalQuery;
     final reason = args['reason'] ?? 'Unknown reason';
 
-    final decision = RoutingDecision(
+    // NEW: Calculate latency
+    final latencyMs = DateTime.now().difference(startTime).inMilliseconds;
+
+    final decision = _createDecision(
       action: ActionType.cloudEscalation,
       confidence: 0.0,
-      timestamp: DateTime.now(),
       rawJson: {'tool': 'escalate_to_expert', 'args': args},
       toolName: 'escalate_to_expert',
       toolArgs: args,
+      latencyMs: latencyMs,
     );
     _routingStream.add(decision);
 
@@ -730,6 +800,76 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
     );
     _consoleStream.add(entry);
     TLog.info(message);
+  }
+
+  // ---------------------------------------------------------------------------
+  // NEW: Metrics helpers
+  // ---------------------------------------------------------------------------
+
+  /// Build routing path string based on action type and tool
+  String _buildRoutingPath(ActionType action, String? toolName) {
+    if (action == ActionType.localInference) {
+      if (toolName == 'validate_routine_step') {
+        return 'Local Routing → Local Vision → Response';
+      } else if (toolName == 'answer_query') {
+        return 'Local Routing → Direct Response';
+      }
+      return 'Local Inference → Response';
+    } else {
+      return 'Local Routing → Cloud Escalation → Response';
+    }
+  }
+
+  /// Calculate cost for a cloud query
+  double _calculateCost(
+    ActionType action, {
+    int? inputTokens,
+    int? outputTokens,
+  }) {
+    if (action == ActionType.cloudEscalation) {
+      final input = inputTokens ?? SessionMetrics.avgInputTokens.toInt();
+      final output = outputTokens ?? SessionMetrics.avgOutputTokens.toInt();
+
+      return (input * SessionMetrics.costPerInputToken) +
+          (output * SessionMetrics.costPerOutputToken);
+    }
+    return 0.0; // Local inference is free
+  }
+
+  /// Create enhanced routing decision with metrics
+  RoutingDecision _createDecision({
+    required ActionType action,
+    required double confidence,
+    required Map<String, dynamic> rawJson,
+    required String? toolName,
+    required Map<String, dynamic>? toolArgs,
+    required int latencyMs,
+    double? tokensPerSecond,
+    int? inputTokens,
+    int? outputTokens,
+  }) {
+    final decision = RoutingDecision(
+      action: action,
+      confidence: confidence,
+      timestamp: DateTime.now(),
+      rawJson: rawJson,
+      toolName: toolName,
+      toolArgs: toolArgs,
+      latencyMs: latencyMs,
+      tokensPerSecond: tokensPerSecond,
+      estimatedCost: _calculateCost(
+        action,
+        inputTokens: inputTokens,
+        outputTokens: outputTokens,
+      ),
+      isOffline: _connectivityService?.isOnline == false,
+      routingPath: _buildRoutingPath(action, toolName),
+    );
+
+    // Record to metrics service
+    _metricsService?.recordDecision(decision);
+
+    return decision;
   }
 
   /// Clean up.

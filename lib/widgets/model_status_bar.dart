@@ -8,12 +8,18 @@ class ModelStatusBar extends StatelessWidget {
   final String status;
   final double downloadProgress;
   final bool isModelReady;
+  final bool isOnline; // NEW
+  final bool isSimulatingOffline; // NEW
+  final VoidCallback? onToggleMetrics; // NEW
 
   const ModelStatusBar({
     super.key,
     required this.status,
     required this.downloadProgress,
     required this.isModelReady,
+    this.isOnline = true,
+    this.isSimulatingOffline = false,
+    this.onToggleMetrics,
   });
 
   @override
@@ -50,6 +56,8 @@ class ModelStatusBar extends StatelessWidget {
                 const SizedBox(width: 12),
                 // Status chip
                 Expanded(child: _buildStatusChip()),
+                // Metrics toggle button
+                if (onToggleMetrics != null) _buildMetricsToggle(),
                 // Connection indicator
                 _buildConnectionDot(),
               ],
@@ -115,21 +123,37 @@ class ModelStatusBar extends StatelessWidget {
   }
 
   Widget _buildConnectionDot() {
+    final isOffline = !isOnline || isSimulatingOffline;
+    final connectionColor = isOffline
+        ? AppColors.info
+        : (isModelReady ? AppColors.success : AppColors.primary);
+    final connectionLabel = isOffline
+        ? 'OFFLINE'
+        : (isModelReady ? 'EDGE' : 'INIT');
+
     return Container(
       margin: const EdgeInsets.only(left: 8),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (isSimulatingOffline)
+            const Padding(
+              padding: EdgeInsets.only(right: 6),
+              child: Icon(
+                Icons.airplanemode_active,
+                size: 14,
+                color: AppColors.info,
+              ),
+            ),
           Container(
             width: 8,
             height: 8,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isModelReady ? AppColors.success : AppColors.primary,
+              color: connectionColor,
               boxShadow: [
                 BoxShadow(
-                  color: (isModelReady ? AppColors.success : AppColors.primary)
-                      .withValues(alpha: 0.6),
+                  color: connectionColor.withValues(alpha: 0.6),
                   blurRadius: 6,
                 ),
               ],
@@ -137,7 +161,7 @@ class ModelStatusBar extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            isModelReady ? 'EDGE' : 'INIT',
+            connectionLabel,
             style: AppTypography.labelSmall.copyWith(
               color: AppColors.textMuted,
               fontSize: 9,
@@ -147,6 +171,17 @@ class ModelStatusBar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMetricsToggle() {
+    return IconButton(
+      icon: const Icon(Icons.analytics, size: 18),
+      color: AppColors.primary,
+      onPressed: onToggleMetrics,
+      tooltip: 'Toggle Metrics',
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
     );
   }
 }

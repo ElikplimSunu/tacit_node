@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/routing_decision.dart';
@@ -6,7 +7,7 @@ import '../theme/app_typography.dart';
 
 /// A semi-transparent debug console overlay that displays real-time
 /// routing decisions and system logs with color-coded entries.
-class DebugConsole extends StatelessWidget {
+class DebugConsole extends StatefulWidget {
   final List<ConsoleEntry> entries;
   final ScrollController scrollController;
   final bool isExpanded;
@@ -21,6 +22,38 @@ class DebugConsole extends StatelessWidget {
   });
 
   @override
+  State<DebugConsole> createState() => _DebugConsoleState();
+}
+
+class _DebugConsoleState extends State<DebugConsole> {
+  ConsoleSeverity? _filter;
+
+  void _toggleEntryExpansion(int index) {
+    setState(() {
+      widget.entries[index].isExpanded = !widget.entries[index].isExpanded;
+    });
+  }
+
+  void _updateFilter(String label) {
+    setState(() {
+      if (label == 'All') {
+        _filter = null;
+      } else if (label == 'Routing') {
+        _filter = ConsoleSeverity.success;
+      } else if (label == 'Warnings') {
+        _filter = ConsoleSeverity.warning;
+      } else if (label == 'Errors') {
+        _filter = ConsoleSeverity.error;
+      }
+    });
+  }
+
+  List<ConsoleEntry> get _filteredEntries {
+    if (_filter == null) return widget.entries;
+    return widget.entries.where((e) => e.severity == _filter).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -29,7 +62,7 @@ class DebugConsole extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
-          height: isExpanded ? 320 : 120,
+          height: widget.isExpanded ? 320 : 120,
           decoration: BoxDecoration(
             color: const Color(
               0x771A1A2E,
@@ -50,7 +83,7 @@ class DebugConsole extends StatelessWidget {
             children: [
               // Drag handle + title
               GestureDetector(
-                onTap: onToggle,
+                onTap: widget.onToggle,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -58,7 +91,11 @@ class DebugConsole extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.terminal, color: AppColors.primary, size: 16),
+                      const Icon(
+                        Icons.terminal,
+                        color: AppColors.primary,
+                        size: 16,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'DEBUG CONSOLE',
@@ -70,7 +107,7 @@ class DebugConsole extends StatelessWidget {
                       ),
                       const Spacer(),
                       Icon(
-                        isExpanded
+                        widget.isExpanded
                             ? Icons.keyboard_arrow_down
                             : Icons.keyboard_arrow_up,
                         color: AppColors.primary,
@@ -81,9 +118,13 @@ class DebugConsole extends StatelessWidget {
                 ),
               ),
               const Divider(height: 1, color: Color(0x33FFFFFF)),
+
+              // Filter chips
+              if (widget.isExpanded) _buildFilterChips(),
+
               // Log entries
               Expanded(
-                child: entries.isEmpty
+                child: _filteredEntries.isEmpty
                     ? Center(
                         child: Text(
                           'Awaiting input…',
@@ -93,41 +134,128 @@ class DebugConsole extends StatelessWidget {
                         ),
                       )
                     : ListView.builder(
-                        controller: scrollController,
+                        controller: widget.scrollController,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 4,
                         ),
-                        itemCount: entries.length,
+                        itemCount: _filteredEntries.length,
                         itemBuilder: (context, index) {
-                          final entry = entries[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 1),
-                            child: RichText(
-                              text: TextSpan(
-                                style: AppTypography.consoleText,
-                                children: [
-                                  TextSpan(
-                                    text: '[${entry.formattedTime}] ',
-                                    style: TextStyle(
-                                      color: AppColors.textMuted,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: entry.message,
-                                    style: TextStyle(
-                                      color: _colorForSeverity(entry.severity),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
+                          final entry = _filteredEntries[index];
+                          final originalIndex = widget.entries.indexOf(entry);
+                          return _buildConsoleEntry(entry, originalIndex);
                         },
                       ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Wrap(
+        spacing: 8,
+        children: [
+          _buildFilterChip('All', _filter == null),
+          _buildFilterChip('Routing', _filter == ConsoleSeverity.success),
+          _buildFilterChip('Warnings', _filter == ConsoleSeverity.warning),
+          _buildFilterChip('Errors', _filter == ConsoleSeverity.error),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, bool isSelected) {
+    return FilterChip(
+      label: Text(
+        label,
+        style: AppTypography.labelSmall.copyWith(
+          color: isSelected ? AppColors.primary : AppColors.textMuted,
+        ),
+      ),
+      selected: isSelected,
+      onSelected: (selected) => _updateFilter(label),
+      backgroundColor: AppColors.surface,
+      selectedColor: AppColors.primary.withOpacity(0.2),
+      side: BorderSide(
+        color: isSelected
+            ? AppColors.primary
+            : AppColors.textMuted.withOpacity(0.3),
+      ),
+    );
+  }
+
+  Widget _buildConsoleEntry(ConsoleEntry entry, int index) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: entry.hasMetadata ? () => _toggleEntryExpansion(index) : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+            color: entry.isExpanded
+                ? AppColors.primary.withOpacity(0.1)
+                : Colors.transparent,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (entry.hasMetadata)
+                  Icon(
+                    entry.isExpanded ? Icons.expand_more : Icons.chevron_right,
+                    size: 14,
+                    color: AppColors.textMuted,
+                  ),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      style: AppTypography.consoleText,
+                      children: [
+                        TextSpan(
+                          text: '[${entry.formattedTime}] ',
+                          style: const TextStyle(color: AppColors.textMuted),
+                        ),
+                        TextSpan(
+                          text: entry.message,
+                          style: TextStyle(
+                            color: _colorForSeverity(entry.severity),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (entry.isExpanded && entry.hasMetadata) _buildJsonViewer(entry),
+      ],
+    );
+  }
+
+  Widget _buildJsonViewer(ConsoleEntry entry) {
+    final formattedJson = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(entry.metadata);
+
+    return Container(
+      margin: const EdgeInsets.only(left: 20, top: 4, bottom: 4, right: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.background.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primary.withOpacity(0.3), width: 1),
+      ),
+      child: SelectableText(
+        formattedJson,
+        style: AppTypography.consoleText.copyWith(
+          fontSize: 11,
+          height: 1.5,
+          fontFamily: 'monospace',
         ),
       ),
     );
