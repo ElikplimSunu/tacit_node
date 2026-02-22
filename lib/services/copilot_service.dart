@@ -88,6 +88,21 @@ class CopilotService {
         },
       ),
     ),
+    CactusTool(
+      name: 'answer_query',
+      description:
+          'Use this to directly answer the user\'s question, provide instructions, or give conversational feedback based on your existing knowledge. '
+          'Do NOT use this if you need to see an image or diagnose a complex fault.',
+      parameters: ToolParametersSchema(
+        properties: {
+          'response_text': ToolParameter(
+            type: 'string',
+            description: 'The conversational response to display to the user.',
+            required: true,
+          ),
+        },
+      ),
+    ),
   ];
 
   // ---------------------------------------------------------------------------
@@ -99,6 +114,7 @@ You are TacitNode, a field equipment copilot assisting a technician.
 You are a text-only routing model.
 If the user asks "what do you see?" or "what is this?", call validate_routine_step and set component_name to "unknown" and step_description to "identifying". The camera system will take over.
 If the user asks a diagnostic/fault question ("why is this failing?"), call escalate_to_expert.
+If the user asks a general question, needs instructions, or greets you, call answer_query with your response.
 Always output a tool call JSON.
 ''';
 
@@ -246,6 +262,8 @@ Always output a tool call JSON.
             );
           } else if (toolName == 'escalate_to_expert') {
             return await _handleCloudEscalation(toolArgs, query, base64Image);
+          } else if (toolName == 'answer_query') {
+            return _handleAnswerQuery(toolArgs);
           }
         }
         return await _handleCloudEscalation(
@@ -290,6 +308,8 @@ Always output a tool call JSON.
           );
         } else if (toolName == 'escalate_to_expert') {
           return await _handleCloudEscalation(toolArgs, query, base64Image);
+        } else if (toolName == 'answer_query') {
+          return _handleAnswerQuery(toolArgs);
         }
       }
 
@@ -339,6 +359,8 @@ Always output a tool call JSON.
           originalQuery,
           base64Image,
         );
+      } else if (toolName == 'answer_query') {
+        return _handleAnswerQuery(toolArgs);
       }
     }
 
@@ -476,6 +498,38 @@ Always output a tool call JSON.
     return '✅ $component — $step';
   }
 
+  String _handleAnswerQuery(Map<String, dynamic> args) {
+    final responseText =
+        args['response_text'] ?? 'I cannot answer that right now.';
+
+    final decision = RoutingDecision(
+      action: ActionType.localInference,
+      confidence: 0.95,
+      timestamp: DateTime.now(),
+      rawJson: {
+        'tool': 'answer_query',
+        'args': {'response_text': responseText},
+      },
+      toolName: 'answer_query',
+      toolArgs: {'response_text': responseText},
+    );
+    _routingStream.add(decision);
+
+    _log(
+      '🟢 Action: Conversational Reply\n'
+      '   Response: \$responseText',
+      ConsoleSeverity.success,
+    );
+    _log(
+      '📋 \${jsonEncode(decision.rawJson)}',
+      ConsoleSeverity.info,
+      metadata: decision.rawJson,
+    );
+
+    _updateStatus('Ready');
+    return responseText;
+  }
+
   Future<String> _handleCloudEscalation(
     Map<String, dynamic> args,
     String originalQuery,
@@ -563,6 +617,17 @@ Always output a tool call JSON.
         'args': {
           'query': extractValue('query') ?? response,
           'reason': extractValue('reason') ?? 'Model requested escalation',
+        },
+      };
+    }
+
+    if (lower.contains('answer_query')) {
+      return {
+        'name': 'answer_query',
+        'args': {
+          'response_text':
+              extractValue('response_text') ??
+              'I understood your query but encountered a parsing error.',
         },
       };
     }
