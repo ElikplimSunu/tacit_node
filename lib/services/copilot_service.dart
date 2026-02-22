@@ -53,14 +53,14 @@ class CopilotService {
           'component_name': ToolParameter(
             type: 'string',
             description:
-                'Name of the identified component (e.g. "LED", "breadboard"). Leave empty if unsure.',
-            required: false,
+                'Name of the component. If the user asks "what do you see?" or "what is this?", you MUST set this exactly to "unknown".',
+            required: true,
           ),
           'step_description': ToolParameter(
             type: 'string',
             description:
-                'Brief description of what was identified or validated. Leave empty if unsure.',
-            required: false,
+                'Description of the step. If identifying an unknown component, set this exactly to "identifying".',
+            required: true,
           ),
         },
       ),
@@ -96,10 +96,10 @@ class CopilotService {
 
   static const String _systemPrompt = '''
 You are TacitNode, a field equipment copilot assisting a technician.
-You are a text-only routing model. You cannot see images.
-For identification queries ("what do you see?", "what is this?"), call validate_routine_step. Leave arguments empty so the vision model can identify it.
-For diagnostic or fault queries ("why is this failing?"), call escalate_to_expert.
-Always use a tool.
+You are a text-only routing model.
+If the user asks "what do you see?" or "what is this?", call validate_routine_step and set component_name to "unknown" and step_description to "identifying". The camera system will take over.
+If the user asks a diagnostic/fault question ("why is this failing?"), call escalate_to_expert.
+Always output a tool call JSON.
 ''';
 
   // ---------------------------------------------------------------------------
@@ -193,6 +193,10 @@ Always use a tool.
         ChatMessage(content: _systemPrompt, role: 'system'),
         userMessage,
       ];
+
+      // Clear any previous chat context in the engine so it doesn't hallucinate
+      // components from previous queries.
+      _lm.reset();
 
       final result = await _lm.generateCompletion(
         messages: messages,
@@ -351,8 +355,14 @@ Always use a tool.
     var component = (args['component_name'] as String?)?.trim() ?? '';
     var step = (args['step_description'] as String?)?.trim() ?? '';
 
-    // FunctionGemma can't see images — use the local vision model.
-    if ((component.isEmpty || step.isEmpty) && imageFilePath != null) {
+    // FunctionGemma can't see images — use the local vision model when it routes
+    // generic identification requests passing 'unknown' or 'null'.
+    final needsVision =
+        component.isEmpty ||
+        component.toLowerCase() == 'unknown' ||
+        component.toLowerCase() == 'null';
+
+    if (needsVision && imageFilePath != null) {
       if (_isVisionReady) {
         _log(
           '�️ Running local vision model for identification…',
@@ -364,8 +374,8 @@ Always use a tool.
             messages: [
               ChatMessage(
                 content:
-                    'Identify the main component or object in this image. '
-                    'Reply with the component name and a brief description.',
+                    'What electronic component, PCB, or circuit board is this? '
+                    'Reply with just the component name, followed by a period, and a brief description.',
                 role: 'user',
                 images: [imageFilePath],
               ),
@@ -378,7 +388,9 @@ Always use a tool.
               '👁️ Vision: ${visionResult.tokensPerSecond.toStringAsFixed(1)} tok/s',
               ConsoleSeverity.info,
             );
-            final visionText = visionResult.response.trim();
+            final visionText = visionResult.response
+                .replaceAll('<|im_end|>', '')
+                .trim();
 
             // Parse response for component name
             if (visionText.contains(' - ')) {
@@ -426,7 +438,10 @@ Always use a tool.
       action: ActionType.localInference,
       confidence: 0.95,
       timestamp: DateTime.now(),
-      rawJson: {'tool': 'validate_routine_step', 'args': args},
+      rawJson: {
+        'tool': 'validate_routine_step',
+        'args': {'component_name': component, 'step_description': step},
+      },
       toolName: 'validate_routine_step',
       toolArgs: {'component_name': component, 'step_description': step},
     );
