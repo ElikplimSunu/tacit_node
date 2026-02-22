@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:cactus/cactus.dart';
-import 'package:flutter/foundation.dart';
 import '../models/routing_decision.dart';
+import '../utils/logger.dart';
 import 'cloud_service.dart';
 
 /// The core orchestration service.
@@ -166,9 +166,15 @@ ALWAYS call a tool. If unsure which, call escalate_to_expert.
       );
 
       if (!result.success) {
-        _log('❌ Inference failed.', ConsoleSeverity.error);
-        _updateStatus('Ready');
-        return 'Inference failed. Please try again.';
+        _log(
+          '🟡 Local inference failed (likely malformed JSON) — auto-escalating to cloud',
+          ConsoleSeverity.warning,
+        );
+        return await _handleCloudEscalation(
+          {'query': query, 'reason': 'Local model produced unparseable output'},
+          query,
+          imagePath,
+        );
       }
 
       _log(
@@ -181,9 +187,27 @@ ALWAYS call a tool. If unsure which, call escalate_to_expert.
         return await _handleToolCalls(result.toolCalls, query, imagePath);
       }
 
-      // Fallback: model didn't call a tool → auto-escalate to cloud
+      // Fallback: try to parse tool calls from raw response text
+      final parsed = _tryParseToolFromResponse(result.response);
+      if (parsed != null) {
+        _log(
+          '🔧 Recovered tool call from raw response: ${parsed['name']}',
+          ConsoleSeverity.info,
+        );
+        final toolName = parsed['name'] as String;
+        final toolArgs = Map<String, dynamic>.from(
+          parsed['args'] as Map<String, dynamic>? ?? {},
+        );
+        if (toolName == 'validate_routine_step') {
+          return _handleLocalValidation(toolArgs);
+        } else if (toolName == 'escalate_to_expert') {
+          return await _handleCloudEscalation(toolArgs, query, imagePath);
+        }
+      }
+
+      // Last resort: auto-escalate to cloud
       _log(
-        '🟡 No tool call — auto-escalating to cloud',
+        '🟡 No tool call detected — auto-escalating to cloud',
         ConsoleSeverity.warning,
       );
       return await _handleCloudEscalation(
@@ -314,6 +338,44 @@ ALWAYS call a tool. If unsure which, call escalate_to_expert.
   // Helpers
   // ---------------------------------------------------------------------------
 
+  /// Tries to recover a tool call from raw response text when the SDK
+  /// couldn't parse it (the small model often generates slightly broken JSON).
+  Map<String, dynamic>? _tryParseToolFromResponse(String response) {
+    final lower = response.toLowerCase();
+
+    // Extract a quoted value for a given key from messy model JSON output
+    String? extractValue(String key) {
+      final pattern = RegExp(key + r'[\s":]+([^",}{]+)');
+      final match = pattern.firstMatch(response);
+      return match?.group(1)?.trim();
+    }
+
+    if (lower.contains('validate_routine_step')) {
+      return {
+        'name': 'validate_routine_step',
+        'args': {
+          'component_name': extractValue('component_name') ?? 'component',
+          'step_description':
+              extractValue('step_description') ?? 'Identified by local model',
+        },
+      };
+    }
+
+    if (lower.contains('escalate_to_expert')) {
+      return {
+        'name': 'escalate_to_expert',
+        'args': {
+          'query': extractValue('query') ?? response,
+          'reason':
+              extractValue('reason') ?? 'Model requested escalation',
+        },
+      };
+    }
+
+    return null;
+  }
+
+
   void _updateStatus(String status) {
     _statusMessage = status;
   }
@@ -329,7 +391,7 @@ ALWAYS call a tool. If unsure which, call escalate_to_expert.
       metadata: metadata,
     );
     _consoleStream.add(entry);
-    debugPrint('[TacitNode] $message');
+    TLog.info(message);
   }
 
   /// Clean up.

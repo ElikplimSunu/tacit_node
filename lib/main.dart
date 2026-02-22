@@ -1,3 +1,4 @@
+import 'package:cactus/cactus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -8,6 +9,9 @@ Future<void> main() async {
 
   // Load secrets from .env
   await dotenv.load(fileName: '.env');
+
+  // Disable Cactus telemetry (avoids Supabase 400 errors in logs)
+  CactusConfig.isTelemetryEnabled = false;
 
   // Lock to portrait for field use
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);

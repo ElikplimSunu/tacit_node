@@ -1,8 +1,7 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart';
+import '../utils/logger.dart';
 
 /// Wraps the camera lifecycle — init, preview, frame capture.
 class CameraService {
@@ -19,7 +18,7 @@ class CameraService {
     try {
       _cameras = await availableCameras();
       if (_cameras.isEmpty) {
-        debugPrint('[CameraService] No cameras available on this device.');
+        TLog.warn('No cameras available on this device.');
         return;
       }
 
@@ -38,9 +37,9 @@ class CameraService {
 
       await _controller!.initialize();
       _isInitialized = true;
-      debugPrint('[CameraService] Camera initialized: ${backCamera.name}');
+      TLog.info('Camera initialized: ${backCamera.name}');
     } catch (e) {
-      debugPrint('[CameraService] Init error: $e');
+      TLog.error('Camera init error: $e');
       _isInitialized = false;
     }
   }
@@ -52,7 +51,7 @@ class CameraService {
       final file = await _controller!.takePicture();
       return file.path;
     } catch (e) {
-      debugPrint('[CameraService] Capture error: $e');
+      TLog.error('Capture error: $e');
       return null;
     }
   }
@@ -65,7 +64,7 @@ class CameraService {
       final bytes = await File(path).readAsBytes();
       return base64Encode(bytes);
     } catch (e) {
-      debugPrint('[CameraService] Base64 encode error: $e');
+      TLog.error('Base64 encode error: $e');
       return null;
     }
   }
