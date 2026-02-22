@@ -87,3 +87,25 @@ Developing a reliable, multi-model AI pipeline on edge devices presented several
 
 * **The Problem:** When the local app intentionally escalated to the cloud (or during fallback), rapid execution sometimes hit the Gemini API rate limits, resulting in a persistent HTTP 429 error and crashing the flow.
 * **The Fix:** Implemented an exponential backoff-and-retry mechanism in `CloudService.dart`. The service now catches HTTP 429s, extracts the specific `retryDelay` required by the Gemini server from the JSON error payload, waits for that exact duration, and silently retries the request (up to 2 times) before surfacing an error to the user.
+
+### Challenge 7: The Tool-Driven Vision Pipeline vs. 1-Turn Architecture
+
+* **The Problem:** We originally attempted an "Agent Loop" where the routing model could optionally output an `analyze_image` tool, allowing the app to run the vision model, append the result to the chat history, and let the routing model respond again. However, managing this 2-turn state on a small edge model caused severe hallucinations, memory accumulation, and slower identification times.
+* **The Fix:** We reverted to the blazing-fast 1-Turn Architecture. Instead of the routing model actively asking for an image analysis, it simply fires `validate_routine_step({"component_name": "unknown"})`. The dart code intercepts this, runs the local vision model, and immediately returns the result to the user. This is infinitely faster and completely bypasses the state-accumulation issues of multi-turn agent loops on tiny mobile LLMs.
+
+### Challenge 8: Robust Fallbacks & Regex Parsing
+
+* **The Problem:** Because the C++ engine doesn't completely wipe its chat history when reset, FunctionGemma would sometimes lose track of its exact instructions after back-to-back queries. It might hallucinate a tool argument like `'identify'` instead of `"unknown"`. Or worse, the C++ engine might crash entirely under memory pressure (`success=false, tokens=0`).
+* **The Fix:** We built an iron-clad layer of defense in dart:
+  1. Broadened `needsVision` heuristics: The camera automatically triggers if the model outputs `"unknown"`, `"null"`, OR `"identify"`.
+  2. Fallback Regex Parsing: Restructured `_tryParseToolFromResponse` to safely extract quoted strings even if they contain internal commas/periods, and to strip hallucinatory single quotes.
+  3. Engine Crash Bypasses: If `result.success` is false and the camera is active, the app checks if the user's text query contains visual keywords ("what", "how", "identify"). If so, it intentionally skips the cloud escalation and natively fires the local vision model anyway, preventing the app from going offline during an engine crash.
+
+---
+
+## 5. Future Optimizations (TODO)
+
+1. **Add Chat History:** Implement short-term multi-turn conversation memory so the user can ask follow-up questions about the identified component.
+2. **Add Text-to-Speech (TTS) and Speech-to-Text (STT):** Allow the technician to operate the copilot completely hands-free while maintaining focus on the equipment.
+3. **Test Cloud Escalation with valid API Key:** The current Gemini fallback fails with a DNS/hostname lookup error. Needs to be tested with a valid key and active connection to ensure the escalation pipeline is solid.
+4. **Optimize Routing and Models:** Explore alternative mobile LLMs (e.g., Qwen 1.5B or deepseek-r1-distill) and experiment with token-level constraints or JSON-schema grammar enforcement at the C++ level to absolutely guarantee valid tool-calling syntax without relying on dart regex fallbacks.

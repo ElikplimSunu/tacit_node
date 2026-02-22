@@ -283,11 +283,13 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
           }
         }
         final lowerQuery = query.toLowerCase();
-        if (lowerQuery.contains('what do you see') ||
-            lowerQuery.contains('what is this') ||
-            lowerQuery.contains('identify')) {
+        if (imageFilePath != null &&
+            (lowerQuery.contains('what') ||
+                lowerQuery.contains('how') ||
+                lowerQuery.contains('identify') ||
+                lowerQuery.contains('is this'))) {
           _log(
-            '🔄 Engine failed but query implies vision. Forcing local vision.',
+            '🔄 Engine failed but camera is active. Defaulting to local vision.',
             ConsoleSeverity.info,
           );
           return await _handleLocalValidation(
@@ -351,11 +353,13 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
         ConsoleSeverity.warning,
       );
       final lowerQuery = query.toLowerCase();
-      if (lowerQuery.contains('what do you see') ||
-          lowerQuery.contains('what is this') ||
-          lowerQuery.contains('identify')) {
+      if (imageFilePath != null &&
+          (lowerQuery.contains('what') ||
+              lowerQuery.contains('how') ||
+              lowerQuery.contains('identify') ||
+              lowerQuery.contains('is this'))) {
         _log(
-          '🔄 No tool called but query implies vision. Forcing local vision.',
+          '🔄 No tool called but camera is active. Defaulting to local vision.',
           ConsoleSeverity.info,
         );
         return await _handleLocalValidation(
@@ -660,6 +664,17 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
 
     // Extract a quoted value for a given key from messy model JSON output
     String? extractValue(String key) {
+      // First try to extract a properly quoted string, robust to internal commas/periods
+      final quotePattern = RegExp(
+        key + r'''[\s"':]+([\"\'])(.*?)\1''',
+        dotAll: true,
+      );
+      final quoteMatch = quotePattern.firstMatch(response);
+      if (quoteMatch != null) {
+        return quoteMatch.group(2)?.trim();
+      }
+
+      // Fallback for unquoted strings or improperly escaped ends
       final pattern = RegExp(key + r'[\s":]+([^",}{]+)');
       final match = pattern.firstMatch(response);
       return match?.group(1)?.replaceAll(RegExp(r'[\u0027\u0022]'), '').trim();
