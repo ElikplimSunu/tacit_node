@@ -110,12 +110,28 @@ class CopilotService {
   // ---------------------------------------------------------------------------
 
   static const String _systemPrompt = '''
-You are TacitNode, a field equipment copilot assisting a technician.
-You are a text-only routing model.
-If the user asks "what do you see?" or "what is this?", call validate_routine_step and set component_name to "unknown" and step_description to "identifying". The camera system will take over.
-If the user asks a diagnostic/fault question ("why is this failing?"), call escalate_to_expert.
-If the user asks a general question, needs instructions, or greets you, call answer_query with your response.
-Always output a tool call JSON.
+You are TacitNode, a strict routing model assisting a technician.
+You MUST reply ONLY with a valid JSON tool call.
+DO NOT use Markdown formatting (e.g., no ```json blocks).
+DO NOT output any conversational text before or after the JSON.
+
+ROUTING RULES:
+1. If the user asks "what do you see?", "what is this?", or to identify something:
+   Call `validate_routine_step` and set `component_name` exactly to "unknown".
+2. If the user asks "why did this fail?", "what is the error?", or needs deep diagnosis:
+   Call `escalate_to_expert`.
+3. If the user asks a general question, needs instructions, or greets you:
+   Call `answer_query`.
+
+EXAMPLES:
+User: "What do you see?"
+Model: {"name": "validate_routine_step", "arguments": {"component_name": "unknown", "step_description": "identifying"}}
+
+User: "Why is the motor smoking?"
+Model: {"name": "escalate_to_expert", "arguments": {"query": "Why is the motor smoking?", "reason": "user requested diagnosis"}}
+
+User: "How do I connect a resistor?"
+Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg to the positive terminal and..."}}
 ''';
 
   // ---------------------------------------------------------------------------
@@ -378,11 +394,17 @@ Always output a tool call JSON.
     var step = (args['step_description'] as String?)?.trim() ?? '';
 
     // FunctionGemma can't see images — use the local vision model when it routes
-    // generic identification requests passing 'unknown' or 'null'.
+    // generic identification requests passing 'unknown', 'null', or 'identify'.
     final needsVision =
-        component.isEmpty ||
-        component.toLowerCase() == 'unknown' ||
-        component.toLowerCase() == 'null';
+        component.isEmpty || // Empty string
+        component.toLowerCase().contains('unknown') || // "unknown" or 'unknown'
+        component.toLowerCase().contains('null') || // "null"
+        component.toLowerCase().contains(
+          'identify',
+        ) || // "identify" or 'identify'
+        step.toLowerCase().contains(
+          'identify',
+        ); // Sometimes the model hallucinates generic step descriptions
 
     if (needsVision && imageFilePath != null) {
       if (_isVisionReady) {
@@ -396,12 +418,9 @@ Always output a tool call JSON.
             messages: [
               ChatMessage(
                 content:
-                    'Name the primary electronic component or object in this image. '
-                    'Rules:\n'
-                    '1. Reply with ONLY 1 or 2 words.\n'
-                    '2. NEVER use sentences.\n'
-                    '3. NEVER use articles (a, an, the).\n'
-                    'Examples: "LED", "Arduino", "Breadboard", "Capacitor"',
+                    'Identify the main object or electronic component in this image.\n'
+                    'Be concise. Just name the component (e.g., "Red LED", "Arduino Uno", "Breadboard").\n'
+                    'Do not describe the scene, just provide the name.',
                 role: 'user',
                 images: [imageFilePath],
               ),
@@ -437,10 +456,10 @@ Always output a tool call JSON.
               ),
               '',
             );
-            stripped = stripped.replaceAll(
-              RegExp(r'\..*'),
-              '',
-            ); // Drop everything after first period
+
+            // Strip numbered list prefixes (e.g. "1. " or "- ") instead of destroying everything after a period.
+            stripped = stripped.replaceAll(RegExp(r'^[\d\.\-\*\s]+'), '');
+
             stripped = stripped.trim();
 
             if (stripped.contains(' - ')) {
@@ -611,7 +630,7 @@ Always output a tool call JSON.
     String? extractValue(String key) {
       final pattern = RegExp(key + r'[\s":]+([^",}{]+)');
       final match = pattern.firstMatch(response);
-      return match?.group(1)?.trim();
+      return match?.group(1)?.replaceAll(RegExp(r'[\u0027\u0022]'), '').trim();
     }
 
     if (lower.contains('validate_routine_step')) {
