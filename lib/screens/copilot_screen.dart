@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../models/routing_decision.dart';
@@ -280,173 +281,188 @@ class _CopilotScreenState extends State<CopilotScreen> {
   }
 
   Widget _buildResponseCard() {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 280),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xEE1A1A2E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _responseText.startsWith('☁️')
-              ? AppColors.warning.withValues(alpha: 0.4)
-              : AppColors.success.withValues(alpha: 0.4),
-        ),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 16),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 280),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0x881A1A2E), // Glassmorphism
+            border: Border.all(
+              color: _responseText.startsWith('☁️')
+                  ? AppColors.warning.withValues(alpha: 0.4)
+                  : AppColors.success.withValues(alpha: 0.4),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 16,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                _responseText.startsWith('☁️')
-                    ? Icons.cloud
-                    : Icons.check_circle,
-                size: 16,
-                color: _responseText.startsWith('☁️')
-                    ? AppColors.warning
-                    : AppColors.success,
+              Row(
+                children: [
+                  Icon(
+                    _responseText.startsWith('☁️')
+                        ? Icons.cloud
+                        : Icons.check_circle,
+                    size: 16,
+                    color: _responseText.startsWith('☁️')
+                        ? AppColors.warning
+                        : AppColors.success,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _responseText.startsWith('☁️')
+                        ? 'EXPERT ANALYSIS'
+                        : 'LOCAL VALIDATION',
+                    style: AppTypography.labelSmall.copyWith(
+                      color: _responseText.startsWith('☁️')
+                          ? AppColors.warning
+                          : AppColors.success,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => setState(() => _responseText = ''),
+                    child: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                _responseText.startsWith('☁️')
-                    ? 'EXPERT ANALYSIS'
-                    : 'LOCAL VALIDATION',
-                style: AppTypography.labelSmall.copyWith(
-                  color: _responseText.startsWith('☁️')
-                      ? AppColors.warning
-                      : AppColors.success,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => setState(() => _responseText = ''),
-                child: const Icon(
-                  Icons.close,
-                  size: 18,
-                  color: AppColors.textMuted,
+              const SizedBox(height: 8),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Text(
+                    _responseText,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      height: 1.5,
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Flexible(
-            child: SingleChildScrollView(
-              child: Text(
-                _responseText,
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildInputBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(color: AppColors.surface),
-      child: Row(
-        children: [
-          // Capture button
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _isProcessing
-                  ? null
-                  : () {
-                      if (_queryController.text.trim().isEmpty) {
-                        _queryController.text = 'What do you see?';
-                      }
-                      _handleQuery();
-                    },
-              borderRadius: BorderRadius.circular(24),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _isProcessing
-                      ? Colors.grey.shade800
-                      : AppColors.primary,
-                  boxShadow: _isProcessing
-                      ? []
-                      : [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.3),
-                            blurRadius: 12,
-                          ),
-                        ],
-                ),
-                child: _isProcessing
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.camera_alt,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Text input
-          Expanded(
-            child: TextField(
-              controller: _queryController,
-              onSubmitted: (_) => _handleQuery(),
-              style: AppTypography.bodyMedium,
-              decoration: InputDecoration(
-                hintText: 'Ask about what you see…',
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                border: OutlineInputBorder(
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.surface.withValues(alpha: 0.6),
+          ), // Glassmorphism
+          child: Row(
+            children: [
+              // Capture button
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _isProcessing
+                      ? null
+                      : () {
+                          if (_queryController.text.trim().isEmpty) {
+                            _queryController.text = 'What do you see?';
+                          }
+                          _handleQuery();
+                        },
                   borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _isProcessing
+                          ? Colors.grey.shade800
+                          : AppColors.primary,
+                      boxShadow: _isProcessing
+                          ? []
+                          : [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.3),
+                                blurRadius: 12,
+                              ),
+                            ],
+                    ),
+                    child: _isProcessing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Send button
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _isProcessing ? null : _handleQuery,
-              borderRadius: BorderRadius.circular(24),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.surface,
-                ),
-                child: Icon(
-                  Icons.send_rounded,
-                  color: _isProcessing
-                      ? AppColors.textMuted
-                      : AppColors.primary,
-                  size: 20,
+              const SizedBox(width: 10),
+              // Text input
+              Expanded(
+                child: TextField(
+                  controller: _queryController,
+                  onSubmitted: (_) => _handleQuery(),
+                  style: AppTypography.bodyMedium,
+                  decoration: InputDecoration(
+                    hintText: 'Ask about what you see…',
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              // Send button
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _isProcessing ? null : _handleQuery,
+                  borderRadius: BorderRadius.circular(24),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.surface.withValues(alpha: 0.6),
+                    ),
+                    child: Icon(
+                      Icons.send_rounded,
+                      color: _isProcessing
+                          ? AppColors.textMuted
+                          : AppColors.primary,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

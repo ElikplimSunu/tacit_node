@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
@@ -17,38 +18,43 @@ class ModelStatusBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
-          children: [
-            // Logo / Title
-            Text(
-              'TACIT',
-              style: AppTypography.titleMedium.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: 3,
-              ),
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.background.withValues(alpha: 0.6), // Glassmorphism
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Row(
+              children: [
+                // Logo / Title
+                Text(
+                  'TACIT',
+                  style: AppTypography.titleMedium.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 3,
+                  ),
+                ),
+                Text(
+                  'NODE',
+                  style: AppTypography.titleMedium.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 3,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Status chip
+                Expanded(child: _buildStatusChip()),
+                // Connection indicator
+                _buildConnectionDot(),
+              ],
             ),
-            Text(
-              'NODE',
-              style: AppTypography.titleMedium.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 3,
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Status chip
-            Expanded(child: _buildStatusChip()),
-            // Connection indicator
-            _buildConnectionDot(),
-          ],
+          ),
         ),
       ),
     );
