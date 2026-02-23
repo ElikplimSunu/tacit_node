@@ -7,13 +7,12 @@ class SessionMetrics {
   int cloudQueries = 0;
   int offlineQueries = 0;
   double totalLatencyMs = 0;
-  double totalCostSavings = 0;
   double totalCloudCost = 0;
   List<RoutingDecision> queryHistory = [];
 
-  // Pricing constants (Gemini 2.0 Flash)
-  static const double costPerInputToken = 0.000000075; // $0.075 per 1M tokens
-  static const double costPerOutputToken = 0.0000003; // $0.30 per 1M tokens
+  // Pricing constants (Gemini 2.5 Flash)
+  static const double costPerInputToken = 0.000000125; // $0.125 per 1M tokens
+  static const double costPerOutputToken = 0.0000005; // $0.50 per 1M tokens
   static const double avgInputTokens = 100; // Estimated avg
   static const double avgOutputTokens = 150; // Estimated avg
 
@@ -39,7 +38,6 @@ class SessionMetrics {
     cloudQueries = 0;
     offlineQueries = 0;
     totalLatencyMs = 0;
-    totalCostSavings = 0;
     totalCloudCost = 0;
     queryHistory.clear();
   }

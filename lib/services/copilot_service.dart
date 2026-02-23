@@ -714,6 +714,10 @@ Model: {"name": "answer_query", "arguments": {"response_text": "Connect one leg 
         '🟢 Cloud response received (${cloudResponse.length} chars)',
         ConsoleSeverity.success,
       );
+
+      // Log the actual response content for debugging
+      _log('📝 Cloud response: $cloudResponse', ConsoleSeverity.info);
+
       _updateStatus('Ready');
       return '☁️ Expert Analysis:\n\n$cloudResponse';
     } catch (e) {

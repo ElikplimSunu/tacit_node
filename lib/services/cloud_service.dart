@@ -6,7 +6,7 @@ import '../utils/logger.dart';
 /// Handles cloud escalation to Gemini API for complex diagnostics.
 class CloudService {
   static const _baseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+      'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent';
 
   static const _maxRetries = 2;
 
@@ -28,9 +28,9 @@ class CloudService {
             {
               'text':
                   'You are TacitNode, an expert industrial field copilot. '
-                  'A junior technician is asking for help diagnosing equipment. '
-                  'Analyze the image and provide a clear, actionable diagnosis.\n\n'
-                  'Technician query: $query',
+                  'A junior technician needs help diagnosing equipment. '
+                  'Provide a CONCISE, actionable diagnosis in 2-3 sentences max.\n\n'
+                  'Query: $query',
             },
             {
               'inline_data': {'mime_type': 'image/jpeg', 'data': base64Image},
@@ -38,7 +38,10 @@ class CloudService {
           ],
         },
       ],
-      'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 1024},
+      'generationConfig': {
+        'temperature': 0.3,
+        'maxOutputTokens': 300, // Limit for concise responses
+      },
     });
 
     return _postWithRetry(body);
@@ -57,13 +60,16 @@ class CloudService {
             {
               'text':
                   'You are TacitNode, an expert industrial field copilot. '
-                  'Provide clear, actionable guidance.\n\n'
-                  'Technician query: $query',
+                  'Provide CONCISE, actionable guidance in 2-3 sentences max.\n\n'
+                  'Query: $query',
             },
           ],
         },
       ],
-      'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 1024},
+      'generationConfig': {
+        'temperature': 0.3,
+        'maxOutputTokens': 300, // Limit for concise responses
+      },
     });
 
     return _postWithRetry(body);

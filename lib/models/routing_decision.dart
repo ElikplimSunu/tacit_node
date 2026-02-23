@@ -56,7 +56,7 @@ class RoutingDecision {
       : 'N/A';
 
   String get formattedCost => estimatedCost != null
-      ? '\${estimatedCost!.toStringAsFixed(4)}'
+      ? '\$${estimatedCost!.toStringAsFixed(4)}'
       : '\$0.00';
 
   IconData get routingIcon =>
