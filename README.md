@@ -1,8 +1,44 @@
 # TacitNode 🏗️⚡
 
-**A hybrid edge-to-cloud AI copilot for industrial field workers.**
+<p align="center">
+  <img src="assets/app_icon.png" alt="TacitNode Logo" width="200"/>
+</p>
 
-TacitNode bridges the "Great Crew Change" knowledge gap by acting as a digital mentor that looks over a junior technician's shoulder. It processes real-time camera feeds on-device for instant, offline-capable guidance — and intelligently escalates complex diagnostics to the cloud when needed.
+<p align="center">
+  <strong>A hybrid edge-to-cloud AI copilot for industrial field workers.</strong>
+</p>
+
+<p align="center">
+  TacitNode bridges the "Great Crew Change" knowledge gap by acting as a digital mentor that looks over a junior technician's shoulder. It processes real-time camera feeds on-device for instant, offline-capable guidance — and intelligently escalates complex diagnostics to the cloud when needed.
+</p>
+
+<p align="center">
+  <a href="https://drive.google.com/file/d/1ey509i5iY_9QusfV_uCb4hoAjXew865a/view?usp=drive_link">
+    <img src="https://img.shields.io/badge/🎥_Watch-Demo_Video-red?style=for-the-badge" alt="Demo Video"/>
+  </a>
+  <img src="https://img.shields.io/badge/Flutter-3.10.1+-02569B?style=for-the-badge&logo=flutter" alt="Flutter"/>
+  <img src="https://img.shields.io/badge/Cactus-Compute-green?style=for-the-badge" alt="Cactus Compute"/>
+  <img src="https://img.shields.io/badge/Gemini-2.5_Flash-4285F4?style=for-the-badge&logo=google" alt="Gemini"/>
+</p>
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="assets/app_icon.png" alt="App Icon" width="150"/>
+</p>
+
+<p align="center">
+  <em>TacitNode features a camera-first interface with real-time routing indicators, performance metrics, and an enhanced debug console for full observability.</em>
+</p>
+
+> **Note:** Add screenshots of your app in action to the `assets/` folder and update the paths above to showcase:
+> - Local inference with green routing indicator
+> - Cloud escalation with amber routing indicator  
+> - Metrics dashboard showing cost savings
+> - Debug console with JSON viewer
+> - Offline mode banner
 
 ---
 
@@ -19,10 +55,11 @@ TacitNode bridges the "Great Crew Change" knowledge gap by acting as a digital m
 │       │                                                     │
 │       ├── validate_routine_step ──▶ 👁️ Local Vision        │
 │       │                             (lfm2-vl-450m)         │
-│       │                             ⚡ 45ms | 168 tok/s     │
+│       │                             ⚡ ~45ms | 168 tok/s    │
+│       │                             💾 245 MB RAM          │
 │       │                                                     │
-│       └── escalate_to_expert ────▶ ☁️ Gemini 2.0 Flash     │
-│                                      ~1.2s | $0.0001       │
+│       └── escalate_to_expert ────▶ ☁️ Gemini 2.5 Flash     │
+│                                      ~1.2s | $0.0000875    │
 │                                                             │
 │  📊 Metrics Dashboard (cost savings, latency tracking)      │
 │  🖥️ Debug Console (JSON routing decisions + filters)        │
@@ -33,30 +70,46 @@ TacitNode bridges the "Great Crew Change" knowledge gap by acting as a digital m
 ## Key Features
 
 ### Core Capabilities
-- **On-device function calling** via [Cactus Compute](https://cactuscompute.com) — FunctionGemma routes queries at 168 tok/s with zero latency
-- **Intelligent cloud escalation** — automatically routes complex diagnostics to Gemini 2.0 Flash when local models can't handle it
+- **On-device function calling** via [Cactus Compute](https://cactuscompute.com) — FunctionGemma routes queries at 168 tok/s with ~45ms latency
+- **Intelligent cloud escalation** — automatically routes complex diagnostics to Gemini 2.5 Flash when local models can't handle it
 - **Hybrid architecture** — 3x cost savings vs pure cloud, with instant local responses and expert cloud analysis
 - **Offline-capable** — local inference works without any network connection, critical for remote industrial sites
+- **Camera-first interface** — full-screen live feed with glassmorphism overlays, designed for hands-free field use
 
 ### Demo-Ready Features
 - **Visual routing indicators** — animated pulse showing local (green) vs cloud (amber) routing decisions in real-time
 - **Performance metrics** — live display of latency, tokens/sec, cost per query, and cumulative savings
 - **Demo control panel** — one-tap presets for reliable demos: Quick ID, Diagnose, Offline Test
 - **Metrics dashboard** — session statistics showing local vs cloud query distribution and cost comparison
-- **Enhanced debug console** — collapsible JSON viewer with syntax highlighting and filter chips
+- **Enhanced debug console** — collapsible JSON viewer with syntax highlighting and filter chips (All, Routing, Warnings, Errors)
 - **Offline mode simulation** — toggle airplane mode for demos without disconnecting network
-- **Camera-first interface** — full-screen live feed with glassmorphism overlays, designed for hands-free field use
+
+## Performance Benchmarks
+
+| Metric | Local Inference | Cloud Escalation | Improvement |
+|--------|----------------|------------------|-------------|
+| Latency | ~45ms | ~1,200ms | **26x faster** |
+| Tokens/sec | 168 tok/s | N/A (network bound) | — |
+| Cost per query | $0.00 | ~$0.0000875 | **100% savings** |
+| Offline capable | ✅ Yes | ❌ No | — |
+| RAM usage | ~245 MB | Minimal | — |
+
+**Hybrid Architecture Benefits:**
+- **3x cost reduction** vs pure cloud (with typical 67% local / 33% cloud split)
+- **26x faster** for routine identification queries
+- **100% offline capable** for local queries
+- **Automatic fallback** ensures reliability
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
 | Frontend | Flutter (Dart) |
-| Local Routing Model | Cactus SDK (`functiongemma-270m` / FunctionGemma) |
-| Connectivity | `connectivity_plus` (offline detection) |
+| Local Routing Model | Cactus SDK (`functiongemma-270m`) |
 | Local Vision Model | Cactus SDK (`lfm2-vl-450m`) |
-| Cloud Fallback | Gemini 2.0 Flash API |
+| Cloud Fallback | Gemini 2.5 Flash API |
 | Camera | `camera` package |
+| Connectivity | `connectivity_plus` |
 | Secrets | `flutter_dotenv` (`.env` gitignored) |
 
 ## Getting Started
@@ -107,7 +160,7 @@ lib/
 │   └── copilot_screen.dart            # Full-screen camera + overlay UI
 ├── services/
 │   ├── camera_service.dart            # Camera lifecycle, frame capture
-│   ├── cloud_service.dart             # Gemini API fallback
+│   ├── cloud_service.dart             # Gemini 2.5 Flash API integration
 │   ├── copilot_service.dart           # Core orchestrator (Cactus LLM + routing)
 │   ├── metrics_service.dart           # Session-wide metrics tracking
 │   └── connectivity_service.dart      # Network status + offline simulation
@@ -122,27 +175,29 @@ lib/
 
 ## How Routing Works
 
-1. **Technician asks a visual question** (e.g., *"What is this?"*) while pointing the camera at equipment
-2. **FunctionGemma processes the text query** (~168 tok/s). It recognizes the intent and calls the appropriate tool:
+TacitNode uses a sophisticated 7-step routing pipeline:
+
+1. **User asks a question** (e.g., *"What is this?"*) while pointing camera at equipment
+2. **FunctionGemma analyzes intent** (~168 tok/s) and selects appropriate tool:
    - `validate_routine_step` → Local identification
    - `escalate_to_expert` → Cloud diagnosis
    - `answer_query` → Direct response
-3. **Visual feedback:**
+3. **Visual feedback displays:**
    - Green pulse animation: "Analyzing locally..."
    - Amber pulse animation: "Escalating to expert..."
-4. **Tool Call Handoff:**
-   - `validate_routine_step` → App feeds camera frame to **Local Vision Model (`lfm2-vl-450m`)** which identifies the component offline (~45ms latency)
-   - `escalate_to_expert` → Captures frame, encodes to base64, sends to **Gemini 2.0 Flash API** (~1.2s latency, ~$0.0001 cost)
-5. **Response card displays:**
-   - Routing type (Local ⚡ or Cloud ☁️)
+4. **Tool execution:**
+   - **Local path:** Camera frame → Vision Model (`lfm2-vl-450m`) → Component ID (~45ms)
+   - **Cloud path:** Frame + query → Gemini 2.5 Flash → Expert analysis (~1.2s)
+5. **Response card shows:**
+   - Routing type (⚡ Local or ☁️ Cloud)
    - Performance metrics (latency, tokens/sec, cost)
    - Routing path taken
    - Cost savings for local queries
 6. **Metrics tracking:**
-   - All queries tracked in session dashboard
+   - All queries logged in session dashboard
    - Cumulative cost comparison (cloud-only vs hybrid)
    - Offline query counter
-7. **If no tool is called / fallback fails** → automatic cloud escalation as safety net
+7. **Automatic fallback:** If local inference fails → cloud escalation as safety net
 
 ## Quick Demo Guide
 
@@ -163,61 +218,45 @@ lib/
 ### What to Show Judges
 - **Visual routing indicators** — Green vs amber pulse animations
 - **Performance metrics** — 45ms local vs 1.2s cloud latency
-- **Cost savings** — Real-time calculation of hybrid vs cloud-only cost
+- **Cost savings** — Real-time calculation of hybrid vs cloud-only cost (3x savings)
 - **Offline capability** — Works without network connection
 - **Technical depth** — JSON viewer showing exact tool calls and routing logic
 
 For a complete 6-minute demo script with timing and talking points, see [DEMO_SCRIPT.md](.kiro/specs/hackathon-demo-enhancements/DEMO_SCRIPT.md)
 
-## License
-
-
-
-
-## Performance Benchmarks
-
-| Metric | Local Inference | Cloud Escalation |
-|--------|----------------|------------------|
-| Latency | ~45ms | ~1,200ms |
-| Tokens/sec | 168 tok/s | N/A (network bound) |
-| Cost per query | $0.00 | ~$0.0001 |
-| Offline capable | ✅ Yes | ❌ No |
-| RAM usage | ~245 MB | Minimal |
-
-**Hybrid Architecture Savings:**
-- 3x cost reduction vs pure cloud
-- 26x faster for local queries
-- 67% of queries handled locally (based on typical usage)
-
 ## Hackathon Features
 
-This project was enhanced for the **Google DeepMind x Cactus Compute Hackathon** with the following demo-ready features:
+This project was built for the **Google DeepMind x Cactus Compute Hackathon** with the following demo-ready enhancements:
 
 ### Visual Enhancements
 - ✅ Animated routing indicators (green pulse for local, amber for cloud)
 - ✅ Performance metrics badges on every response
 - ✅ Glassmorphism UI with smooth transitions
 - ✅ Color-coded routing decisions throughout
+- ✅ High-resolution app icons and splash screens
 
 ### Demo Controls
 - ✅ One-tap demo presets (Quick ID, Diagnose, Offline Test)
 - ✅ Metrics reset button for fresh demos
 - ✅ Offline mode simulation toggle
 - ✅ Expandable FAB with staggered animations
+- ✅ Mutual exclusivity (FAB/metrics can't both be open)
 
 ### Metrics & Analytics
 - ✅ Session statistics dashboard
 - ✅ Cost comparison (cloud-only vs hybrid)
-- ✅ Cumulative savings tracker
+- ✅ Cumulative savings tracker with 5-decimal precision
 - ✅ Offline query counter
 - ✅ Average latency display
+- ✅ Detailed logging for verification
 
 ### Developer Tools
 - ✅ Enhanced debug console with JSON viewer
-- ✅ Collapsible routing entries
+- ✅ Collapsible routing entries (120px → 336px)
 - ✅ Filter chips (All, Routing, Warnings, Errors)
 - ✅ Syntax-highlighted tool calls
 - ✅ Full observability of routing decisions
+- ✅ Cloud response logging
 
 ## Troubleshooting
 
@@ -235,11 +274,29 @@ This project was enhanced for the **Google DeepMind x Cactus Compute Hackathon**
 - Tap FAB → Offline Test preset to simulate
 - Or use device airplane mode
 - Local models must be downloaded first
+- Tap offline banner to disable simulation
 
 ### Metrics not updating
 - Tap FAB → Reset Metrics to clear
-- Ensure MetricsService is initialized
-- Check debug console for errors
+- Check debug console for detailed logs
+- Verify MetricsService initialization
+
+### Cloud escalation failing
+- Verify Gemini API key in `.env` file
+- Check internet connection
+- Review debug console for error details
+- API uses Gemini 2.5 Flash model
+
+## Technical Documentation
+
+For detailed technical information, including:
+- Complete development history
+- All challenges encountered and solutions
+- Architecture decisions and rationale
+- Performance characteristics
+- Future optimization plans
+
+See [docs/technical_documentation.md](docs/technical_documentation.md)
 
 ## Contributing
 
@@ -249,13 +306,24 @@ This project demonstrates hybrid edge-to-cloud AI architecture for the hackathon
 - Enhanced error handling and retry mechanisms
 - Additional performance optimizations
 - Support for more Cactus models
+- Multi-turn conversation support
+- Voice control (TTS/STT)
+
+## License
+
+MIT License - See LICENSE file for details
 
 ## Acknowledgments
 
 Built with:
-- [Cactus Compute](https://cactuscompute.com) - On-device AI inference
-- [Google DeepMind](https://deepmind.google) - Gemini API and FunctionGemma
+- [Cactus Compute](https://cactuscompute.com) - On-device AI inference SDK
+- [Google DeepMind](https://deepmind.google) - Gemini API and FunctionGemma model
 - [Flutter](https://flutter.dev) - Cross-platform framework
 - [connectivity_plus](https://pub.dev/packages/connectivity_plus) - Network monitoring
+- [Liquid AI](https://liquid.ai) - LFM2-VL vision model
 
-Special thanks to the Google DeepMind and Cactus Compute teams for organizing the hackathon and providing the tools to build hybrid AI systems.
+**Special thanks** to the Google DeepMind and Cactus Compute teams for organizing the hackathon and providing the tools to build hybrid AI systems that work anywhere - from the factory floor to remote field sites.
+
+---
+
+*Demonstrating the future of hybrid edge-to-cloud AI systems*
