@@ -26,19 +26,20 @@
 ## Screenshots
 
 <p align="center">
-  <img src="assets/app_icon.png" alt="App Icon" width="150"/>
+  <img src="assets/screenshots/2026-02-23 03.29.55.jpg" alt="Local Inference" width="250"/>
+  <img src="assets/screenshots/2026-02-23 03.29.59.jpg" alt="Routing Indicator" width="250"/>
+  <img src="assets/screenshots/2026-02-23 03.30.02.jpg" alt="Cloud Escalation" width="250"/>
 </p>
 
 <p align="center">
-  <em>TacitNode features a camera-first interface with real-time routing indicators, performance metrics, and an enhanced debug console for full observability.</em>
+  <img src="assets/screenshots/2026-02-23 03.30.05.jpg" alt="Metrics Dashboard" width="250"/>
+  <img src="assets/screenshots/2026-02-23 03.30.08.jpg" alt="Debug Console" width="250"/>
+  <img src="assets/screenshots/2026-02-23 03.30.10.jpg" alt="Offline Mode" width="250"/>
 </p>
 
-> **Note:** Add screenshots of your app in action to the `assets/` folder and update the paths above to showcase:
-> - Local inference with green routing indicator
-> - Cloud escalation with amber routing indicator  
-> - Metrics dashboard showing cost savings
-> - Debug console with JSON viewer
-> - Offline mode banner
+<p align="center">
+  <em>TacitNode in action: Local inference with green indicators, cloud escalation with amber indicators, real-time metrics dashboard, enhanced debug console, and offline mode support.</em>
+</p>
 
 ---
 
@@ -199,34 +200,30 @@ TacitNode uses a sophisticated 7-step routing pipeline:
    - Offline query counter
 7. **Automatic fallback:** If local inference fails → cloud escalation as safety net
 
-## Quick Demo Guide
+## Usage Guide
 
-### Using Demo Presets (Recommended)
+### Quick Start with Presets
 1. **Tap the FAB** (floating action button, bottom-right with flask icon)
 2. **Select a preset:**
    - **Quick ID** (green) → Instant local identification with metrics
    - **Diagnose** (amber) → Cloud escalation for complex analysis
    - **Offline Test** (blue) → Simulates airplane mode, local-only inference
 
-### Manual Demo Flow
+### Basic Usage
 1. **Local inference** — Point camera at component (LED, breadboard, Arduino). Type *"What is this?"* → watch green pulse → instant response with latency/TPS metrics ⚡
 2. **Cloud escalation** — Type *"Why is this circuit failing?"* → watch amber pulse → Gemini analysis with cost display ☁️
 3. **Offline mode** — Tap FAB → Offline Test preset → see offline banner → local inference still works ✈️
 4. **Metrics dashboard** — Tap FAB → Analytics button → view session stats, cost comparison, savings 📊
 5. **Debug console** — Expand console at bottom → tap routing entries → view JSON with tool calls 🖥️
 
-### What to Show Judges
+### Key Features to Explore
 - **Visual routing indicators** — Green vs amber pulse animations
 - **Performance metrics** — 45ms local vs 1.2s cloud latency
 - **Cost savings** — Real-time calculation of hybrid vs cloud-only cost (3x savings)
 - **Offline capability** — Works without network connection
 - **Technical depth** — JSON viewer showing exact tool calls and routing logic
 
-For a complete 6-minute demo script with timing and talking points, see [DEMO_SCRIPT.md](.kiro/specs/hackathon-demo-enhancements/DEMO_SCRIPT.md)
-
-## Hackathon Features
-
-This project was built for the **Google DeepMind x Cactus Compute Hackathon** with the following demo-ready enhancements:
+## Features
 
 ### Visual Enhancements
 - ✅ Animated routing indicators (green pulse for local, amber for cloud)
@@ -235,9 +232,9 @@ This project was built for the **Google DeepMind x Cactus Compute Hackathon** wi
 - ✅ Color-coded routing decisions throughout
 - ✅ High-resolution app icons and splash screens
 
-### Demo Controls
-- ✅ One-tap demo presets (Quick ID, Diagnose, Offline Test)
-- ✅ Metrics reset button for fresh demos
+### Interactive Controls
+- ✅ One-tap presets (Quick ID, Diagnose, Offline Test)
+- ✅ Metrics reset button for fresh sessions
 - ✅ Offline mode simulation toggle
 - ✅ Expandable FAB with staggered animations
 - ✅ Mutual exclusivity (FAB/metrics can't both be open)
@@ -300,8 +297,8 @@ See [docs/technical_documentation.md](docs/technical_documentation.md)
 
 ## Contributing
 
-This project demonstrates hybrid edge-to-cloud AI architecture for the hackathon. Key areas for contribution:
-- Additional demo presets for different industries
+This project demonstrates hybrid edge-to-cloud AI architecture. Key areas for contribution:
+- Additional presets for different industries
 - More sophisticated routing logic
 - Enhanced error handling and retry mechanisms
 - Additional performance optimizations
@@ -313,6 +310,8 @@ This project demonstrates hybrid edge-to-cloud AI architecture for the hackathon
 
 MIT License - See LICENSE file for details
 
+---
+
 ## Acknowledgments
 
 Built with:
@@ -322,8 +321,11 @@ Built with:
 - [connectivity_plus](https://pub.dev/packages/connectivity_plus) - Network monitoring
 - [Liquid AI](https://liquid.ai) - LFM2-VL vision model
 
-**Special thanks** to the Google DeepMind and Cactus Compute teams for organizing the hackathon and providing the tools to build hybrid AI systems that work anywhere - from the factory floor to remote field sites.
+**Special thanks** to the teams at Google DeepMind, Cactus Compute, and Liquid AI for providing the tools to build hybrid AI systems that work anywhere - from the factory floor to remote field sites.
 
 ---
 
-*Demonstrating the future of hybrid edge-to-cloud AI systems*
+<p align="center">
+  <em>Demonstrating the future of hybrid edge-to-cloud AI systems</em>
+</p>
+
