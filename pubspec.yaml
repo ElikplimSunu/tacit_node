@@ -52,23 +52,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  flutter_launcher_icons: ^0.13.1
-
-flutter_launcher_icons:
-  android: "launcher_icon"
-  ios: true
-  image_path: "assets/icon.png"
-  adaptive_icon_background: "#0F0F23"
-  adaptive_icon_foreground: "assets/icon.png"
-  min_sdk_android: 21
-  web:
-    generate: true
-    image_path: "assets/icon.png"
-    background_color: "#0F0F23"
-    theme_color: "#FFB300"
-  macos:
-    generate: true
-    image_path: "assets/icon.png"
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -114,3 +99,26 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#0F0F23"
+  adaptive_icon_foreground: "assets/app_icon.png"
+
+flutter_native_splash:
+  color: "#0F0F23"
+  image: "assets/app_icon_splash.png"
+  fullscreen: true
+  android_gravity: center
+  ios_content_mode: center
+  android: true
+  ios: true
+  web: false
+  android_12:
+    image: "assets/app_icon_splash.png"
+    icon_background_color: "#0F0F23"
+    color: "#0F0F23"
+    fullscreen: true
